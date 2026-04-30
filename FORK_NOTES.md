@@ -21,7 +21,7 @@ See `LICENSE.HERMES.md` for the original license text.
 - Status: In Progress
 - Upstream deltas: None — unmodified baseline
 - Added: `FORK_NOTES.md`, `RESUME.md` (this file and resume)
-- Venv: Python 3.11.15 via uv at `~/code/robin/.venv`
+- Venv: Python 3.11.15 via uv at `/Users/ifthenvoid/Robin/Robin_V4/.venv`
 - Extras installed: `messaging`, `cli`, `honcho`, `pty`
 
 ### Phase 1 — Strip (planned)
