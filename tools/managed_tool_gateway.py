@@ -11,8 +11,8 @@ from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 
-from hermes_constants import get_hermes_home
-from tools.tool_backend_helpers import managed_nous_tools_enabled
+from robin_constants import get_robin_home
+from tools.tool_backend_helpers import managed_iftv_tools_enabled
 
 _DEFAULT_TOOL_GATEWAY_DOMAIN = "nousresearch.com"
 _DEFAULT_TOOL_GATEWAY_SCHEME = "https"
@@ -28,11 +28,11 @@ class ManagedToolGatewayConfig:
 
 
 def auth_json_path():
-    """Return the Hermes auth store path, respecting HERMES_HOME overrides."""
-    return get_hermes_home() / "auth.json"
+    """Return the Robin auth store path, respecting ROBIN_HOME overrides."""
+    return get_robin_home() / "auth.json"
 
 
-def _read_nous_provider_state() -> Optional[dict]:
+def _read_iftv_provider_state() -> Optional[dict]:
     try:
         path = auth_json_path()
         if not path.is_file():
@@ -41,9 +41,9 @@ def _read_nous_provider_state() -> Optional[dict]:
         providers = data.get("providers", {})
         if not isinstance(providers, dict):
             return None
-        nous_provider = providers.get("nous", {})
-        if isinstance(nous_provider, dict):
-            return nous_provider
+        iftv_provider = providers.get("nous", {})
+        if isinstance(iftv_provider, dict):
+            return iftv_provider
     except Exception:
         pass
     return None
@@ -78,18 +78,18 @@ def read_nous_access_token() -> Optional[str]:
     if isinstance(explicit, str) and explicit.strip():
         return explicit.strip()
 
-    nous_provider = _read_nous_provider_state() or {}
-    access_token = nous_provider.get("access_token")
+    iftv_provider = _read_iftv_provider_state() or {}
+    access_token = iftv_provider.get("access_token")
     cached_token = access_token.strip() if isinstance(access_token, str) and access_token.strip() else None
 
     if cached_token and not _access_token_is_expiring(
-        nous_provider.get("expires_at"),
+        iftv_provider.get("expires_at"),
         _NOUS_ACCESS_TOKEN_REFRESH_SKEW_SECONDS,
     ):
         return cached_token
 
     try:
-        from hermes_cli.auth import resolve_nous_access_token
+        from robin_cli.auth import resolve_nous_access_token
 
         refreshed_token = resolve_nous_access_token(
             refresh_skew_seconds=_NOUS_ACCESS_TOKEN_REFRESH_SKEW_SECONDS,
@@ -135,7 +135,7 @@ def resolve_managed_tool_gateway(
     token_reader: Optional[Callable[[], Optional[str]]] = None,
 ) -> Optional[ManagedToolGatewayConfig]:
     """Resolve shared managed-tool gateway config for a vendor."""
-    if not managed_nous_tools_enabled():
+    if not managed_iftv_tools_enabled():
         return None
 
     resolved_gateway_builder = gateway_builder or build_vendor_gateway_url

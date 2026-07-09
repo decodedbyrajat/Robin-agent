@@ -1,0 +1,19 @@
+#!/bin/sh
+# Robin Agent local launcher. Prefer the checkout venv so ./robin works even
+# when the system Python is older than Robin's required Python.
+
+set -eu
+
+SCRIPT_REALPATH=$(readlink -f "$0" 2>/dev/null || perl -MCwd -e 'print Cwd::abs_path shift' "$0")
+SCRIPT_DIR=$(cd -- "$(dirname -- "$SCRIPT_REALPATH")" && pwd)
+
+if [ -x "$SCRIPT_DIR/.venv/bin/python" ]; then
+  PYTHON="$SCRIPT_DIR/.venv/bin/python"
+elif [ -x "$SCRIPT_DIR/venv/bin/python" ]; then
+  PYTHON="$SCRIPT_DIR/venv/bin/python"
+else
+  PYTHON="${PYTHON:-python3}"
+fi
+
+cd "$SCRIPT_DIR"
+exec "$PYTHON" -m robin_cli.main "$@"

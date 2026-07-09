@@ -30,7 +30,7 @@ from tools.skill_manager_tool import (
 @contextmanager
 def _skill_dir(tmp_path):
     """Patch both SKILLS_DIR and get_all_skills_dirs so _find_skill searches
-    only the temp directory — not the real ~/.hermes/skills/."""
+    only the temp directory — not the real ~/.robin/skills/."""
     with patch("tools.skill_manager_tool.SKILLS_DIR", tmp_path), \
          patch("agent.skill_utils.get_all_skills_dirs", return_value=[tmp_path]):
         yield
@@ -549,14 +549,14 @@ class TestSecurityScanGate:
         """_guard_agent_created_enabled returns False when config doesn't set it."""
         from tools.skill_manager_tool import _guard_agent_created_enabled
 
-        with patch("hermes_cli.config.load_config", return_value={"skills": {}}):
+        with patch("robin_cli.config.load_config", return_value={"skills": {}}):
             assert _guard_agent_created_enabled() is False
 
     def test_guard_flag_reads_config_when_set(self):
         """_guard_agent_created_enabled returns True when user explicitly enables."""
         from tools.skill_manager_tool import _guard_agent_created_enabled
 
-        with patch("hermes_cli.config.load_config",
+        with patch("robin_cli.config.load_config",
                    return_value={"skills": {"guard_agent_created": True}}):
             assert _guard_agent_created_enabled() is True
 
@@ -564,7 +564,7 @@ class TestSecurityScanGate:
         """If load_config raises, _guard_agent_created_enabled defaults to False (fail-safe off)."""
         from tools.skill_manager_tool import _guard_agent_created_enabled
 
-        with patch("hermes_cli.config.load_config", side_effect=RuntimeError("boom")):
+        with patch("robin_cli.config.load_config", side_effect=RuntimeError("boom")):
             assert _guard_agent_created_enabled() is False
 
 
@@ -599,7 +599,7 @@ class TestExternalSkillMutations:
 
     Regression for issues #4759 and #4381: the read-only gate used to refuse
     with 'Skill X is in an external directory and cannot be modified', which
-    caused agents to create duplicate copies in ~/.hermes/skills/ as a
+    caused agents to create duplicate copies in ~/.robin/skills/ as a
     workaround.
     """
 
@@ -718,7 +718,7 @@ class TestExternalSkillMutations:
 
 # ---------------------------------------------------------------------------
 # Pinned-skill guard — skill_manage refuses all writes to pinned skills.
-# The user unpins via `hermes curator unpin <name>`.
+# The user unpins via `robin curator unpin <name>`.
 # ---------------------------------------------------------------------------
 
 class TestPinnedGuard:
@@ -738,7 +738,7 @@ class TestPinnedGuard:
                 result = _edit_skill("my-skill", VALID_SKILL_CONTENT_2)
         assert result["success"] is False
         assert "pinned" in result["error"].lower()
-        assert "hermes curator unpin my-skill" in result["error"]
+        assert "robin curator unpin my-skill" in result["error"]
         # Original content preserved
         content = (tmp_path / "my-skill" / "SKILL.md").read_text()
         assert "A test skill" in content
@@ -750,7 +750,7 @@ class TestPinnedGuard:
                 result = _patch_skill("my-skill", "Do the thing.", "Do the new thing.")
         assert result["success"] is False
         assert "pinned" in result["error"].lower()
-        assert "hermes curator unpin my-skill" in result["error"]
+        assert "robin curator unpin my-skill" in result["error"]
         content = (tmp_path / "my-skill" / "SKILL.md").read_text()
         assert "Do the thing." in content  # unchanged
 

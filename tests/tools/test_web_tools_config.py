@@ -38,8 +38,8 @@ class TestFirecrawlClientConfig:
         # local web_tools import and the managed_tool_gateway import so the
         # full firecrawl client init path sees True.
         self._managed_patchers = [
-            patch("tools.web_tools.managed_nous_tools_enabled", return_value=True),
-            patch("tools.managed_tool_gateway.managed_nous_tools_enabled", return_value=True),
+            patch("tools.web_tools.managed_iftv_tools_enabled", return_value=True),
+            patch("tools.managed_tool_gateway.managed_iftv_tools_enabled", return_value=True),
         ]
         for p in self._managed_patchers:
             p.start()
@@ -137,14 +137,14 @@ class TestFirecrawlClientConfig:
                     api_url="https://firecrawl-gateway.nousresearch.com",
                 )
 
-    def test_nous_auth_token_respects_hermes_home_override(self, tmp_path):
-        """Auth lookup should read from HERMES_HOME/auth.json, not ~/.hermes/auth.json."""
+    def test_nous_auth_token_respects_robin_home_override(self, tmp_path):
+        """Auth lookup should read from ROBIN_HOME/auth.json, not ~/.robin/auth.json."""
         real_home = tmp_path / "real-home"
-        (real_home / ".hermes").mkdir(parents=True)
+        (real_home / ".robin").mkdir(parents=True)
 
-        hermes_home = tmp_path / "hermes-home"
-        hermes_home.mkdir()
-        (hermes_home / "auth.json").write_text(json.dumps({
+        robin_home = tmp_path / "robin-home"
+        robin_home.mkdir()
+        (robin_home / "auth.json").write_text(json.dumps({
             "providers": {
                 "nous": {
                     "access_token": "nous-token",
@@ -154,7 +154,7 @@ class TestFirecrawlClientConfig:
 
         with patch.dict(os.environ, {
             "HOME": str(real_home),
-            "HERMES_HOME": str(hermes_home),
+            "ROBIN_HOME": str(robin_home),
         }, clear=False):
             import tools.web_tools
             importlib.reload(tools.web_tools)
@@ -245,7 +245,7 @@ class TestBackendSelection:
     """Test suite for _get_backend() backend selection logic.
 
     The backend is configured via config.yaml (web.backend), set by
-    ``hermes tools``.  Falls back to key-based detection for legacy/manual
+    ``robin tools``.  Falls back to key-based detection for legacy/manual
     setups.
     """
 
@@ -265,8 +265,8 @@ class TestBackendSelection:
         for key in self._ENV_KEYS:
             os.environ.pop(key, None)
         self._managed_patchers = [
-            patch("tools.web_tools.managed_nous_tools_enabled", return_value=True),
-            patch("tools.managed_tool_gateway.managed_nous_tools_enabled", return_value=True),
+            patch("tools.web_tools.managed_iftv_tools_enabled", return_value=True),
+            patch("tools.managed_tool_gateway.managed_iftv_tools_enabled", return_value=True),
         ]
         for p in self._managed_patchers:
             p.start()
@@ -543,8 +543,8 @@ class TestCheckWebApiKey:
         for key in self._ENV_KEYS:
             os.environ.pop(key, None)
         self._managed_patchers = [
-            patch("tools.web_tools.managed_nous_tools_enabled", return_value=True),
-            patch("tools.managed_tool_gateway.managed_nous_tools_enabled", return_value=True),
+            patch("tools.web_tools.managed_iftv_tools_enabled", return_value=True),
+            patch("tools.managed_tool_gateway.managed_iftv_tools_enabled", return_value=True),
         ]
         for p in self._managed_patchers:
             p.start()

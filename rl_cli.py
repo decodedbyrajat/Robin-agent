@@ -27,16 +27,16 @@ from pathlib import Path
 import fire
 import yaml
 
-from hermes_constants import OPENROUTER_BASE_URL, get_hermes_home
+from robin_constants import OPENROUTER_BASE_URL, get_robin_home
 
-# Load .env from ~/.hermes/.env first, then project root as dev fallback.
+# Load .env from ~/.robin/.env first, then project root as dev fallback.
 # User-managed env files should override stale shell exports on restart.
-_hermes_home = get_hermes_home()
+_robin_home = get_robin_home()
 _project_env = Path(__file__).parent / '.env'
 
-from hermes_cli.env_loader import load_hermes_dotenv
+from robin_cli.env_loader import load_robin_dotenv
 
-_loaded_env_paths = load_hermes_dotenv(hermes_home=_hermes_home, project_env=_project_env)
+_loaded_env_paths = load_robin_dotenv(robin_home=_robin_home, project_env=_project_env)
 for _env_path in _loaded_env_paths:
     print(f"✅ Loaded environment variables from {_env_path}")
 
@@ -45,12 +45,12 @@ for _env_path in _loaded_env_paths:
 tinker_atropos_dir = Path(__file__).parent / 'tinker-atropos'
 if tinker_atropos_dir.exists():
     os.environ['TERMINAL_CWD'] = str(tinker_atropos_dir)
-    os.environ['HERMES_QUIET'] = '1'  # Disable temp subdirectory creation
+    os.environ['ROBIN_QUIET'] = '1'  # Disable temp subdirectory creation
     print(f"📂 Terminal working directory: {tinker_atropos_dir}")
 else:
-    # Fall back to hermes-agent directory if submodule not found
+    # Fall back to robin-agent directory if submodule not found
     os.environ['TERMINAL_CWD'] = str(Path(__file__).parent)
-    os.environ['HERMES_QUIET'] = '1'
+    os.environ['ROBIN_QUIET'] = '1'
     print(f"⚠️  tinker-atropos submodule not found, using: {Path(__file__).parent}")
 
 # Import agent and tools
@@ -66,14 +66,14 @@ DEFAULT_MODEL = "anthropic/claude-opus-4.5"
 DEFAULT_BASE_URL = OPENROUTER_BASE_URL
 
 
-def load_hermes_config() -> dict:
+def load_robin_config() -> dict:
     """
-    Load configuration from ~/.hermes/config.yaml.
+    Load configuration from ~/.robin/config.yaml.
     
     Returns:
         dict: Configuration with model, base_url, etc.
     """
-    config_path = _hermes_home / 'config.yaml'
+    config_path = _robin_home / 'config.yaml'
     
     config = {
         "model": DEFAULT_MODEL,
@@ -249,7 +249,7 @@ def main(
     
     Args:
         task: The training task/goal (e.g., "Train a model on GSM8k for math")
-        model: Model to use for the agent (reads from ~/.hermes/config.yaml if not provided)
+        model: Model to use for the agent (reads from ~/.robin/config.yaml if not provided)
         api_key: OpenRouter API key (uses OPENROUTER_API_KEY env var if not provided)
         base_url: API base URL (reads from config or defaults to OpenRouter)
         max_iterations: Maximum agent iterations (default: 200 for long workflows)
@@ -272,8 +272,8 @@ def main(
         # Check server status
         python rl_cli.py --check-server
     """
-    # Load config from ~/.hermes/config.yaml
-    config = load_hermes_config()
+    # Load config from ~/.robin/config.yaml
+    config = load_robin_config()
     
     # Use config values if not explicitly provided
     if model is None:
@@ -297,7 +297,7 @@ def main(
             missing = get_missing_keys()
             if missing:
                 print(f"\n⚠️  Missing API keys: {', '.join(missing)}")
-                print("   Add them to ~/.hermes/.env")
+                print("   Add them to ~/.robin/.env")
             else:
                 print("✅ API keys configured")
         else:

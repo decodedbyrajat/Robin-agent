@@ -6,11 +6,11 @@ import type { DashboardTheme } from "@/themes/types";
 // Injected into index.html by the server — never fetched via API.
 declare global {
   interface Window {
-    __HERMES_SESSION_TOKEN__?: string;
+    __ROBIN_SESSION_TOKEN__?: string;
   }
 }
 let _sessionToken: string | null = null;
-const SESSION_HEADER = "X-Hermes-Session-Token";
+const SESSION_HEADER = "X-Robin-Session-Token";
 
 function setSessionHeader(headers: Headers, token: string): void {
   if (!headers.has(SESSION_HEADER)) {
@@ -21,7 +21,7 @@ function setSessionHeader(headers: Headers, token: string): void {
 export async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
   // Inject the session token into all /api/ requests.
   const headers = new Headers(init?.headers);
-  const token = window.__HERMES_SESSION_TOKEN__;
+  const token = window.__ROBIN_SESSION_TOKEN__;
   if (token) {
     setSessionHeader(headers, token);
   }
@@ -35,16 +35,17 @@ export async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> 
 
 async function getSessionToken(): Promise<string> {
   if (_sessionToken) return _sessionToken;
-  const injected = window.__HERMES_SESSION_TOKEN__;
+  const injected = window.__ROBIN_SESSION_TOKEN__;
   if (injected) {
     _sessionToken = injected;
     return _sessionToken;
   }
-  throw new Error("Session token not available — page must be served by the Hermes dashboard server");
+  throw new Error("Session token not available — page must be served by the Robin dashboard server");
 }
 
 export const api = {
   getStatus: () => fetchJSON<StatusResponse>("/api/status"),
+  getSystemHealth: () => fetchJSON<SystemHealthResponse>("/api/system/health"),
   getSessions: (limit = 20, offset = 0) =>
     fetchJSON<PaginatedSessions>(`/api/sessions?limit=${limit}&offset=${offset}`),
   getSessionMessages: (id: string) =>
@@ -205,8 +206,8 @@ export const api = {
   // Gateway / update actions
   restartGateway: () =>
     fetchJSON<ActionResponse>("/api/gateway/restart", { method: "POST" }),
-  updateHermes: () =>
-    fetchJSON<ActionResponse>("/api/hermes/update", { method: "POST" }),
+  updateRobin: () =>
+    fetchJSON<ActionResponse>("/api/robin/update", { method: "POST" }),
   getActionStatus: (name: string, lines = 200) =>
     fetchJSON<ActionStatusResponse>(
       `/api/actions/${encodeURIComponent(name)}/status?lines=${lines}`,
@@ -250,6 +251,21 @@ export interface PlatformStatus {
   updated_at: string;
 }
 
+export interface SystemHealthResponse {
+  cpu_percent?: number;
+  memory_total_gb?: number;
+  memory_used_gb?: number;
+  memory_percent?: number;
+  disk_total_gb?: number;
+  disk_used_gb?: number;
+  disk_percent?: number;
+  uptime_seconds?: number;
+  thermal_status?: number | null;
+  ollama_running?: boolean;
+  ollama_models?: string[];
+  psutil_error?: string;
+}
+
 export interface StatusResponse {
   active_sessions: number;
   config_path: string;
@@ -262,7 +278,7 @@ export interface StatusResponse {
   gateway_running: boolean;
   gateway_state: string | null;
   gateway_updated_at: string | null;
-  hermes_home: string;
+  robin_home: string;
   latest_config_version: number;
   release_date: string;
   version: string;

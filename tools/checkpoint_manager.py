@@ -9,9 +9,9 @@ This is NOT a tool — the LLM never sees it.  It's transparent infrastructure
 controlled by the ``checkpoints`` config flag or ``--checkpoints`` CLI flag.
 
 Architecture:
-    ~/.hermes/checkpoints/{sha256(abs_dir)[:16]}/   — shadow git repo
+    ~/.robin/checkpoints/{sha256(abs_dir)[:16]}/   — shadow git repo
         HEAD, refs/, objects/                        — standard git internals
-        HERMES_WORKDIR                               — original dir path
+        ROBIN_WORKDIR                               — original dir path
         info/exclude                                 — default excludes
 
 The shadow repo uses GIT_DIR + GIT_WORK_TREE so no git state leaks
@@ -25,7 +25,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from hermes_constants import get_hermes_home
+from robin_constants import get_robin_home
 from typing import Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-CHECKPOINT_BASE = get_hermes_home() / "checkpoints"
+CHECKPOINT_BASE = get_robin_home() / "checkpoints"
 
 DEFAULT_EXCLUDES = [
     "node_modules/",
@@ -60,7 +60,7 @@ DEFAULT_EXCLUDES = [
 ]
 
 # Git subprocess timeout (seconds).
-_GIT_TIMEOUT: int = max(10, min(60, int(os.getenv("HERMES_CHECKPOINT_TIMEOUT", "30"))))
+_GIT_TIMEOUT: int = max(10, min(60, int(os.getenv("ROBIN_CHECKPOINT_TIMEOUT", "30"))))
 
 # Max files to snapshot — skip huge directories to avoid slowdowns.
 _MAX_FILES = 50_000
@@ -128,7 +128,7 @@ def _shadow_repo_path(working_dir: str) -> Path:
 def _git_env(shadow_repo: Path, working_dir: str) -> dict:
     """Build env dict that redirects git to the shadow repo.
 
-    The shadow repo is internal Hermes infrastructure — it must NOT inherit
+    The shadow repo is internal Robin infrastructure — it must NOT inherit
     the user's global or system git config.  User-level settings like
     ``commit.gpgsign = true``, signing hooks, or credential helpers would
     either break background snapshots or, worse, spawn interactive prompts
@@ -231,8 +231,8 @@ def _init_shadow_repo(shadow_repo: Path, working_dir: str) -> Optional[str]:
     if not ok:
         return f"Shadow repo init failed: {err}"
 
-    _run_git(["config", "user.email", "hermes@local"], shadow_repo, working_dir)
-    _run_git(["config", "user.name", "Hermes Checkpoint"], shadow_repo, working_dir)
+    _run_git(["config", "user.email", "robin@local"], shadow_repo, working_dir)
+    _run_git(["config", "user.name", "Robin Checkpoint"], shadow_repo, working_dir)
     # Explicitly disable commit/tag signing in the shadow repo.  _git_env
     # already isolates from the user's global config, but writing these into
     # the shadow's own config is belt-and-suspenders — it guarantees the
@@ -247,7 +247,7 @@ def _init_shadow_repo(shadow_repo: Path, working_dir: str) -> Optional[str]:
         "\n".join(DEFAULT_EXCLUDES) + "\n", encoding="utf-8"
     )
 
-    (shadow_repo / "HERMES_WORKDIR").write_text(
+    (shadow_repo / "ROBIN_WORKDIR").write_text(
         str(_normalize_path(working_dir)) + "\n", encoding="utf-8"
     )
 
@@ -666,7 +666,7 @@ def format_checkpoint_list(checkpoints: List[Dict], directory: str) -> str:
 #
 # ``prune_checkpoints`` sweeps CHECKPOINT_BASE at startup, deleting shadow
 # repos that match either criterion:
-#   * orphan:  the ``HERMES_WORKDIR`` path no longer exists on disk
+#   * orphan:  the ``ROBIN_WORKDIR`` path no longer exists on disk
 #   * stale:   the repo's newest mtime is older than ``retention_days``
 #
 # ``maybe_auto_prune_checkpoints`` wraps it with an idempotency marker
@@ -680,9 +680,9 @@ _PRUNE_MARKER_NAME = ".last_prune"
 
 
 def _read_workdir_marker(shadow_repo: Path) -> Optional[str]:
-    """Read ``HERMES_WORKDIR`` from a shadow repo, or None if missing/unreadable."""
+    """Read ``ROBIN_WORKDIR`` from a shadow repo, or None if missing/unreadable."""
     try:
-        return (shadow_repo / "HERMES_WORKDIR").read_text(encoding="utf-8").strip()
+        return (shadow_repo / "ROBIN_WORKDIR").read_text(encoding="utf-8").strip()
     except (OSError, UnicodeDecodeError):
         return None
 
@@ -717,7 +717,7 @@ def prune_checkpoints(
 
     A shadow repo is deleted when either:
 
-    * ``delete_orphans=True`` and its ``HERMES_WORKDIR`` path no longer
+    * ``delete_orphans=True`` and its ``ROBIN_WORKDIR`` path no longer
       exists on disk (the original project was deleted / moved); OR
     * its newest in-repo mtime is older than ``retention_days`` days.
 
@@ -796,7 +796,7 @@ def maybe_auto_prune_checkpoints(
     Writes ``CHECKPOINT_BASE/.last_prune`` on completion so subsequent
     calls within ``min_interval_hours`` short-circuit.  Designed to be
     called once per CLI/gateway process startup; the marker keeps costs
-    bounded regardless of how many times hermes is invoked per day.
+    bounded regardless of how many times robin is invoked per day.
 
     Returns ``{"skipped": bool, "result": prune_checkpoints-dict,
     "error": optional str}``.

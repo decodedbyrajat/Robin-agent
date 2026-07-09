@@ -7,18 +7,18 @@ from pathlib import Path
 from typing import Optional
 
 
-def _hermes_home_path() -> Path:
-    """Resolve the active HERMES_HOME (profile-aware) without circular imports."""
+def _robin_home_path() -> Path:
+    """Resolve the active ROBIN_HOME (profile-aware) without circular imports."""
     try:
-        from hermes_constants import get_hermes_home  # local import to avoid cycles
-        return get_hermes_home()
+        from robin_constants import get_robin_home  # local import to avoid cycles
+        return get_robin_home()
     except Exception:
-        return Path(os.path.expanduser("~/.hermes"))
+        return Path(os.path.expanduser("~/.robin"))
 
 
 def build_write_denied_paths(home: str) -> set[str]:
     """Return exact sensitive paths that must never be written."""
-    hermes_home = _hermes_home_path()
+    robin_home = _robin_home_path()
     return {
         os.path.realpath(p)
         for p in [
@@ -26,7 +26,7 @@ def build_write_denied_paths(home: str) -> set[str]:
             os.path.join(home, ".ssh", "id_rsa"),
             os.path.join(home, ".ssh", "id_ed25519"),
             os.path.join(home, ".ssh", "config"),
-            str(hermes_home / ".env"),
+            str(robin_home / ".env"),
             os.path.join(home, ".bashrc"),
             os.path.join(home, ".zshrc"),
             os.path.join(home, ".profile"),
@@ -62,8 +62,8 @@ def build_write_denied_prefixes(home: str) -> list[str]:
 
 
 def get_safe_write_root() -> Optional[str]:
-    """Return the resolved HERMES_WRITE_SAFE_ROOT path, or None if unset."""
-    root = os.getenv("HERMES_WRITE_SAFE_ROOT", "")
+    """Return the resolved ROBIN_WRITE_SAFE_ROOT path, or None if unset."""
+    root = os.getenv("ROBIN_WRITE_SAFE_ROOT", "")
     if not root:
         return None
     try:
@@ -91,12 +91,12 @@ def is_write_denied(path: str) -> bool:
 
 
 def get_read_block_error(path: str) -> Optional[str]:
-    """Return an error message when a read targets internal Hermes cache files."""
+    """Return an error message when a read targets internal Robin cache files."""
     resolved = Path(path).expanduser().resolve()
-    hermes_home = _hermes_home_path().resolve()
+    robin_home = _robin_home_path().resolve()
     blocked_dirs = [
-        hermes_home / "skills" / ".hub" / "index-cache",
-        hermes_home / "skills" / ".hub",
+        robin_home / "skills" / ".hub" / "index-cache",
+        robin_home / "skills" / ".hub",
     ]
     for blocked in blocked_dirs:
         try:
@@ -104,7 +104,7 @@ def get_read_block_error(path: str) -> Optional[str]:
         except ValueError:
             continue
         return (
-            f"Access denied: {path} is an internal Hermes cache file "
+            f"Access denied: {path} is an internal Robin cache file "
             "and cannot be read directly to prevent prompt injection. "
             "Use the skills_list or skill_view tools instead."
         )

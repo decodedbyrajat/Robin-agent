@@ -1,4 +1,4 @@
-import { stringWidth } from '@hermes/ink'
+import { stringWidth } from '@robin/ink'
 
 export const COMPOSER_PROMPT_GAP_WIDTH = 1
 

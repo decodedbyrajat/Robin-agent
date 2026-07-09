@@ -2,19 +2,19 @@
 name: spotify
 description: "Spotify: play, search, queue, manage playlists and devices."
 version: 1.0.0
-author: Hermes Agent
+author: Robin Agent
 license: MIT
 prerequisites:
   tools: [spotify_playback, spotify_devices, spotify_queue, spotify_search, spotify_playlists, spotify_albums, spotify_library]
 metadata:
-  hermes:
+  robin:
     tags: [spotify, music, playback, playlists, media]
     related_skills: [gif-search]
 ---
 
 # Spotify
 
-Control the user's Spotify account via the Hermes Spotify toolset (7 tools). Setup guide: https://hermes-agent.nousresearch.com/docs/user-guide/features/spotify
+Control the user's Spotify account via the Robin Spotify toolset (7 tools). Setup guide: https://github.com/IfThenVoid/Robin/tree/main/website/docs/user-guide/features/spotify
 
 ## When to use this skill
 
@@ -111,7 +111,7 @@ spotify_devices({"action": "transfer", "device_id": "<id>", "play": true})
 
 **`429 Too Many Requests`** = rate limit. Wait and retry once. If it keeps happening, you're looping — stop.
 
-**`401 Unauthorized` after a retry** — refresh token revoked. Tell the user to run `hermes auth spotify` again.
+**`401 Unauthorized` after a retry** — refresh token revoked. Tell the user to run `robin auth spotify` again.
 
 ## URI and ID formats
 

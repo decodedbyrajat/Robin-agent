@@ -1,4 +1,4 @@
-import { Box, Text, useInput } from '@hermes/ink'
+import { Box, Text, useInput } from '@robin/ink'
 import { useState } from 'react'
 
 import { isMac } from '../lib/platform.js'

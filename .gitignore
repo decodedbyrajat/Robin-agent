@@ -20,7 +20,7 @@ data/
 .pytest_cache/
 tmp/
 temp_vision_images/
-hermes-*/*
+robin-*/*
 examples/
 tests/quick_test_dataset.jsonl
 tests/sample_dataset.jsonl
@@ -39,21 +39,21 @@ agent-browser/
 privvy*
 images/
 __pycache__/
-hermes_agent.egg-info/
+robin_agent.egg-info/
 wandb/
 testlogs
 
 # CLI config (may contain sensitive SSH paths)
 cli-config.yaml
 
-# Skills Hub state (lives in ~/.hermes/skills/.hub/ at runtime, but just in case)
+# Skills Hub state (lives in ~/.robin/skills/.hub/ at runtime, but just in case)
 skills/.hub/
 ignored/
 .worktrees/
 environments/benchmarks/evals/
 
 # Web UI build output
-hermes_cli/web_dist/
+robin_cli/web_dist/
 
 # Web UI assets — synced from @nous-research/ui at build time via
 # `npm run sync-assets` (see web/package.json).
@@ -70,3 +70,4 @@ mini-swe-agent/
 result
 website/static/api/skills-index.json
 models-dev-upstream/
+graphify-out/

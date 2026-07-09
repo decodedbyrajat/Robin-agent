@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from hermes_constants import get_config_path, get_skills_dir
+from robin_constants import get_config_path, get_skills_dir
 
 logger = logging.getLogger(__name__)
 
@@ -123,8 +123,8 @@ def get_disabled_skill_names(platform: str | None = None) -> Set[str]:
 
     Args:
         platform: Explicit platform name (e.g. ``"telegram"``).  When
-            *None*, resolves from ``HERMES_PLATFORM`` or
-            ``HERMES_SESSION_PLATFORM`` env vars.  Falls back to the
+            *None*, resolves from ``ROBIN_PLATFORM`` or
+            ``ROBIN_SESSION_PLATFORM`` env vars.  Falls back to the
             global disabled list when no platform is determined.
 
     Reads the config file directly (no CLI config imports) to stay
@@ -148,8 +148,8 @@ def get_disabled_skill_names(platform: str | None = None) -> Set[str]:
     from gateway.session_context import get_session_env
     resolved_platform = (
         platform
-        or os.getenv("HERMES_PLATFORM")
-        or get_session_env("HERMES_SESSION_PLATFORM")
+        or os.getenv("ROBIN_PLATFORM")
+        or get_session_env("ROBIN_SESSION_PLATFORM")
     )
     if resolved_platform:
         platform_disabled = (skills_cfg.get("platform_disabled") or {}).get(
@@ -168,6 +168,33 @@ def _normalize_string_set(values) -> Set[str]:
     return {str(v).strip() for v in values if str(v).strip()}
 
 
+# ── Skills index style ────────────────────────────────────────────────────
+
+
+def get_skills_index_style() -> str:
+    """Read ``skills.index_style`` from config.yaml: ``compact`` or ``full``.
+
+    ``compact`` (default) lists category descriptions plus skill names only —
+    the model drills down with skills_list(category=...) / skill_view(name).
+    ``full`` restores the legacy per-skill description lines (roughly 5x the
+    system-prompt footprint at ~300 skills).
+    """
+    config_path = get_config_path()
+    if not config_path.exists():
+        return "compact"
+    try:
+        parsed = yaml_load(config_path.read_text(encoding="utf-8"))
+    except Exception:
+        return "compact"
+    if not isinstance(parsed, dict):
+        return "compact"
+    skills_cfg = parsed.get("skills")
+    if not isinstance(skills_cfg, dict):
+        return "compact"
+    style = str(skills_cfg.get("index_style") or "").strip().lower()
+    return style if style in ("compact", "full") else "compact"
+
+
 # ── External skills directories ──────────────────────────────────────────
 
 
@@ -176,7 +203,7 @@ def get_external_skills_dirs() -> List[Path]:
 
     Each entry is expanded (``~`` and ``${VAR}``) and resolved to an absolute
     path.  Only directories that actually exist are returned.  Duplicates and
-    paths that resolve to the local ``~/.hermes/skills/`` are silently skipped.
+    paths that resolve to the local ``~/.robin/skills/`` are silently skipped.
     """
     config_path = get_config_path()
     if not config_path.exists():
@@ -200,9 +227,9 @@ def get_external_skills_dirs() -> List[Path]:
     if not isinstance(raw_dirs, list):
         return []
 
-    from hermes_constants import get_hermes_home
+    from robin_constants import get_robin_home
 
-    hermes_home = get_hermes_home()
+    robin_home = get_robin_home()
     local_skills = get_skills_dir().resolve()
     seen: Set[Path] = set()
     result: List[Path] = []
@@ -214,9 +241,9 @@ def get_external_skills_dirs() -> List[Path]:
         # Expand ~ and environment variables
         expanded = os.path.expanduser(os.path.expandvars(entry))
         p = Path(expanded)
-        # Resolve relative paths against HERMES_HOME, not cwd
+        # Resolve relative paths against ROBIN_HOME, not cwd
         if not p.is_absolute():
-            p = (hermes_home / p).resolve()
+            p = (robin_home / p).resolve()
         else:
             p = p.resolve()
         if p == local_skills:
@@ -233,7 +260,7 @@ def get_external_skills_dirs() -> List[Path]:
 
 
 def get_all_skills_dirs() -> List[Path]:
-    """Return all skill directories: local ``~/.hermes/skills/`` first, then external.
+    """Return all skill directories: local ``~/.robin/skills/`` first, then external.
 
     The local dir is always first (and always included even if it doesn't exist
     yet — callers handle that).  External dirs follow in config order.
@@ -252,14 +279,14 @@ def extract_skill_conditions(frontmatter: Dict[str, Any]) -> Dict[str, List]:
     # Handle cases where metadata is not a dict (e.g., a string from malformed YAML)
     if not isinstance(metadata, dict):
         metadata = {}
-    hermes = metadata.get("hermes") or {}
-    if not isinstance(hermes, dict):
-        hermes = {}
+    robin = metadata.get("robin") or {}
+    if not isinstance(robin, dict):
+        robin = {}
     return {
-        "fallback_for_toolsets": hermes.get("fallback_for_toolsets", []),
-        "requires_toolsets": hermes.get("requires_toolsets", []),
-        "fallback_for_tools": hermes.get("fallback_for_tools", []),
-        "requires_tools": hermes.get("requires_tools", []),
+        "fallback_for_toolsets": robin.get("fallback_for_toolsets", []),
+        "requires_toolsets": robin.get("requires_toolsets", []),
+        "fallback_for_tools": robin.get("fallback_for_tools", []),
+        "requires_tools": robin.get("requires_tools", []),
     }
 
 
@@ -272,7 +299,7 @@ def extract_skill_config_vars(frontmatter: Dict[str, Any]) -> List[Dict[str, Any
     Skills declare config.yaml settings they need via::
 
         metadata:
-          hermes:
+          robin:
             config:
               - key: wiki.path
                 description: Path to the LLM Wiki knowledge base directory
@@ -285,10 +312,10 @@ def extract_skill_config_vars(frontmatter: Dict[str, Any]) -> List[Dict[str, Any
     metadata = frontmatter.get("metadata")
     if not isinstance(metadata, dict):
         return []
-    hermes = metadata.get("hermes")
-    if not isinstance(hermes, dict):
+    robin = metadata.get("robin")
+    if not isinstance(robin, dict):
         return []
-    raw = hermes.get("config")
+    raw = robin.get("config")
     if not raw:
         return []
     if isinstance(raw, dict):

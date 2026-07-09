@@ -315,7 +315,7 @@ class TestTryRecoverPrimaryTransport:
         )
         assert result is False
 
-    def test_skipped_for_nous_provider(self):
+    def test_skipped_for_iftv_provider(self):
         agent = _make_agent(provider="nous", base_url="https://inference.nous.nousresearch.com/v1")
         error = _make_transport_error("ReadTimeout")
 

@@ -194,6 +194,34 @@ def _truncate_tool_call_args_json(args: str, head_chars: int = 200) -> str:
     return json.dumps(shrunken, ensure_ascii=False)
 
 
+_PERSISTED_PATH_RE = re.compile(r"Full output saved to: (\S+)")
+
+
+def _collect_artifact_paths(messages: List[Dict[str, Any]], limit: int = 20) -> List[str]:
+    """Harvest persisted-output file paths from tool results.
+
+    Large tool outputs are spilled to disk (tools/tool_result_storage.py) and
+    replaced in-context by a preview + "Full output saved to: <path>" block.
+    Summarization and pruning destroy those blocks, so after a compaction the
+    model no longer knows the ground truth is sitting on disk. Collecting the
+    paths deterministically (no LLM) lets the compaction summary carry them
+    forward verbatim — the post-compaction model can re-read the files
+    instead of trusting a paraphrase.
+
+    Returns the last ``limit`` unique paths in conversation order.
+    """
+    seen: dict[str, None] = {}
+    for msg in messages:
+        content = msg.get("content")
+        if not isinstance(content, str) or "Full output saved to:" not in content:
+            continue
+        for m in _PERSISTED_PATH_RE.finditer(content):
+            seen.pop(m.group(1), None)  # re-insert to keep latest position
+            seen[m.group(1)] = None
+    paths = list(seen.keys())
+    return paths[-limit:]
+
+
 def _summarize_tool_result(tool_name: str, tool_args: str, tool_content: str) -> str:
     """Create an informative 1-line summary of a tool call + result.
 
@@ -1271,6 +1299,10 @@ The user has requested that this compaction PRIORITISE preserving all informatio
 
         display_tokens = current_tokens if current_tokens else self.last_prompt_tokens or estimate_messages_tokens_rough(messages)
 
+        # Harvest persisted-output paths BEFORE pruning/summarization destroy
+        # the <persisted-output> blocks that reference them.
+        artifact_paths = _collect_artifact_paths(messages)
+
         # Phase 1: Prune old tool results (cheap, no LLM call)
         messages, pruned_count = self._prune_old_tool_results(
             messages, protect_tail_count=self.protect_last_n,
@@ -1345,6 +1377,23 @@ The user has requested that this compaction PRIORITISE preserving all informatio
                 f"messages contained earlier work in this session. Continue based on the "
                 f"recent messages below and the current state of any files or resources."
             )
+
+        # Append the artifact ledger deterministically (never via the LLM, so
+        # it cannot be hallucinated or dropped). Skip paths still visible in
+        # the protected tail — the model can already see those.
+        if artifact_paths:
+            tail_text = "\n".join(
+                m.get("content") for m in messages[compress_end:]
+                if isinstance(m.get("content"), str)
+            )
+            missing = [p for p in artifact_paths if p not in tail_text]
+            if missing:
+                summary += (
+                    "\n\n## Artifacts on disk (auto-collected)\n"
+                    "Full outputs of earlier large tool results were saved to disk "
+                    "and are still readable with read_file:\n"
+                    + "\n".join(f"- {p}" for p in missing)
+                )
 
         _merge_summary_into_tail = False
         last_head_role = messages[compress_start - 1].get("role", "user") if compress_start > 0 else "user"

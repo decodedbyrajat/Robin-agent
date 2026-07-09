@@ -24,7 +24,7 @@ def sample_repo(tmp_path: Path) -> Path:
     repo = tmp_path / "repo"
     repo.mkdir()
     _git(repo, "init")
-    _git(repo, "config", "user.name", "Hermes Tests")
+    _git(repo, "config", "user.name", "Robin Tests")
     _git(repo, "config", "user.email", "tests@example.com")
 
     (repo / "src").mkdir()
@@ -309,22 +309,22 @@ def test_defaults_allowed_root_to_cwd(tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_blocks_sensitive_home_and_hermes_paths(tmp_path: Path, monkeypatch):
+async def test_blocks_sensitive_home_and_robin_paths(tmp_path: Path, monkeypatch):
     from agent.context_references import preprocess_context_references_async
 
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setenv("HERMES_HOME", str(tmp_path / ".hermes"))
+    monkeypatch.setenv("ROBIN_HOME", str(tmp_path / ".robin"))
 
-    hermes_env = tmp_path / ".hermes" / ".env"
-    hermes_env.parent.mkdir(parents=True)
-    hermes_env.write_text("API_KEY=super-secret\n", encoding="utf-8")
+    robin_env = tmp_path / ".robin" / ".env"
+    robin_env.parent.mkdir(parents=True)
+    robin_env.write_text("API_KEY=super-secret\n", encoding="utf-8")
 
     ssh_key = tmp_path / ".ssh" / "id_rsa"
     ssh_key.parent.mkdir(parents=True)
     ssh_key.write_text("PRIVATE-KEY\n", encoding="utf-8")
 
     result = await preprocess_context_references_async(
-        "read @file:.hermes/.env and @file:.ssh/id_rsa",
+        "read @file:.robin/.env and @file:.ssh/id_rsa",
         cwd=tmp_path,
         allowed_root=tmp_path,
         context_length=100_000,

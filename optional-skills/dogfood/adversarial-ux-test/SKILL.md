@@ -5,7 +5,7 @@ version: 1.0.0
 author: Omni @ Comelse
 license: MIT
 metadata:
-  hermes:
+  robin:
     tags: [qa, ux, testing, adversarial, dogfood, personas, user-testing]
     related_skills: [dogfood]
 ---

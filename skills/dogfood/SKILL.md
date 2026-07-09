@@ -3,7 +3,7 @@ name: dogfood
 description: "Exploratory QA of web apps: find bugs, evidence, reports."
 version: 1.0.0
 metadata:
-  hermes:
+  robin:
     tags: [qa, testing, browser, web, dogfood]
     related_skills: []
 ---

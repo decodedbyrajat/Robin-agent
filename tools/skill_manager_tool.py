@@ -4,7 +4,7 @@ Skill Manager Tool -- Agent-Managed Skill Creation & Editing
 
 Allows the agent to create, update, and delete skills, turning successful
 approaches into reusable procedural knowledge. New skills are created in
-~/.hermes/skills/. Existing skills (bundled, hub-installed, or user-created)
+~/.robin/skills/. Existing skills (bundled, hub-installed, or user-created)
 can be modified or deleted wherever they live.
 
 Skills are the agent's procedural memory: they capture *how to do a specific
@@ -20,7 +20,7 @@ Actions:
   remove_file-- Remove a supporting file from a user skill
 
 Directory layout for user skills:
-    ~/.hermes/skills/
+    ~/.robin/skills/
     ├── my-skill/
     │   ├── SKILL.md
     │   ├── references/
@@ -39,11 +39,11 @@ import re
 import shutil
 import tempfile
 from pathlib import Path
-from hermes_constants import get_hermes_home, display_hermes_home
+from robin_constants import get_robin_home, display_robin_home
 from typing import Dict, Any, Optional, Tuple
 
 from utils import atomic_replace
-from hermes_cli.config import cfg_get
+from robin_cli.config import cfg_get
 
 logger = logging.getLogger(__name__)
 
@@ -62,10 +62,10 @@ def _guard_agent_created_enabled() -> bool:
     Off by default because the agent can already execute the same code
     paths via terminal() with no gate, so the scan adds friction without
     meaningful security.  Users who want belt-and-suspenders can turn it
-    on via `hermes config set skills.guard_agent_created true`.
+    on via `robin config set skills.guard_agent_created true`.
     """
     try:
-        from hermes_cli.config import load_config
+        from robin_cli.config import load_config
         cfg = load_config()
         return bool(cfg_get(cfg, "skills", "guard_agent_created", default=False))
     except Exception:
@@ -101,9 +101,9 @@ def _security_scan_skill(skill_dir: Path) -> Optional[str]:
 import yaml
 
 
-# All skills live in ~/.hermes/skills/ (single source of truth)
-HERMES_HOME = get_hermes_home()
-SKILLS_DIR = HERMES_HOME / "skills"
+# All skills live in ~/.robin/skills/ (single source of truth)
+ROBIN_HOME = get_robin_home()
+SKILLS_DIR = ROBIN_HOME / "skills"
 
 MAX_NAME_LENGTH = 64
 MAX_DESCRIPTION_LENGTH = 1024
@@ -136,7 +136,7 @@ def _pinned_guard(name: str) -> Optional[str]:
 
     Pinned skills are off-limits to the agent's skill_manage tool.  The only
     way to modify one is for the user to unpin it via
-    ``hermes curator unpin <name>`` (or edit it directly by hand).  This
+    ``robin curator unpin <name>`` (or edit it directly by hand).  This
     mirrors the curator's own pinned-skip behavior but extends the guard
     to tool-driven writes as well, giving users a hard fence against
     accidental agent edits.
@@ -151,7 +151,7 @@ def _pinned_guard(name: str) -> Optional[str]:
             return (
                 f"Skill '{name}' is pinned and cannot be modified by "
                 f"skill_manage. Ask the user to run "
-                f"`hermes curator unpin {name}` if they want the change."
+                f"`robin curator unpin {name}` if they want the change."
             )
     except Exception:
         logger.debug("pinned-guard lookup failed for %s", name, exc_info=True)
@@ -276,7 +276,7 @@ def _find_skill(name: str) -> Optional[Dict[str, Any]]:
     """
     Find a skill by name across all skill directories.
 
-    Searches the local skills dir (~/.hermes/skills/) first, then any
+    Searches the local skills dir (~/.robin/skills/) first, then any
     external dirs configured via skills.external_dirs.  Returns
     {"path": Path} or None.
     """
@@ -770,23 +770,20 @@ SKILL_MANAGE_SCHEMA = {
     "description": (
         "Manage skills (create, update, delete). Skills are your procedural "
         "memory — reusable approaches for recurring task types. "
-        f"New skills go to {display_hermes_home()}/skills/; existing skills can be modified wherever they live.\n\n"
+        f"New skills go to {display_robin_home()}/skills/; existing skills can be modified wherever they live.\n\n"
         "Actions: create (full SKILL.md + optional category), "
         "patch (old_string/new_string — preferred for fixes), "
         "edit (full SKILL.md rewrite — major overhauls only), "
         "delete, write_file, remove_file.\n\n"
-        "Create when: complex task succeeded (5+ calls), errors overcome, "
-        "user-corrected approach worked, non-trivial workflow discovered, "
-        "or user asks you to remember a procedure.\n"
-        "Update when: instructions stale/wrong, OS-specific failures, "
-        "missing steps or pitfalls found during use. "
-        "If you used a skill and hit issues not covered by it, patch it immediately.\n\n"
-        "After difficult/iterative tasks, offer to save as a skill. "
-        "Skip for simple one-offs. Confirm with user before creating/deleting.\n\n"
+        "Create when a complex task succeeded, errors were overcome, a "
+        "user-corrected approach worked, or the user asks to remember a "
+        "procedure. Update (patch immediately) when instructions proved "
+        "stale/wrong or were missing steps or pitfalls. Skip simple one-offs; "
+        "confirm with the user before create/delete.\n"
         "Good skills: trigger conditions, numbered steps with exact commands, "
-        "pitfalls section, verification steps. Use skill_view() to see format examples.\n\n"
+        "pitfalls, verification (see skill_view() for format).\n"
         "Pinned skills are off-limits — all write actions refuse with a message "
-        "pointing the user to `hermes curator unpin <name>`. Don't try to route "
+        "pointing the user to `robin curator unpin <name>`. Don't try to route "
         "around this by renaming or recreating."
     ),
     "parameters": {

@@ -2,10 +2,10 @@
 name: requesting-code-review
 description: "Pre-commit review: security scan, quality gates, auto-fix."
 version: 2.0.0
-author: Hermes Agent (adapted from obra/superpowers + MorAlekss)
+author: Robin Agent (adapted from obra/superpowers + MorAlekss)
 license: MIT
 metadata:
-  hermes:
+  robin:
     tags: [code-review, security, verification, quality, pre-commit, auto-fix]
     related_skills: [subagent-driven-development, writing-plans, test-driven-development, github-code-review]
 ---

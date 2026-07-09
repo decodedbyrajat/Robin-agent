@@ -118,8 +118,8 @@ export interface Translations {
     starting: string;
     startedInBackground: string;
     stopped: string;
-    updateHermes: string;
-    updatingHermes: string;
+    updateRobin: string;
+    updatingRobin: string;
     waitingForOutput: string;
   };
 

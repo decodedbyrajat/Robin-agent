@@ -10,7 +10,7 @@ import {
 
 const ACTION_NAMES: Record<SystemAction, string> = {
   restart: "gateway-restart",
-  update: "hermes-update",
+  update: "robin-update",
 };
 
 export function SystemActionsProvider({
@@ -72,7 +72,7 @@ export function SystemActionsProvider({
         if (action === "restart") {
           await api.restartGateway();
         } else {
-          await api.updateHermes();
+          await api.updateRobin();
         }
         setActiveAction(action);
       } catch (err) {

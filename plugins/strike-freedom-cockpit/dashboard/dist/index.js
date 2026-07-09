@@ -21,8 +21,8 @@
 (function () {
   "use strict";
 
-  const SDK = window.__HERMES_PLUGIN_SDK__;
-  const PLUGINS = window.__HERMES_PLUGINS__;
+  const SDK = window.__ROBIN_PLUGIN_SDK__;
+  const PLUGINS = window.__ROBIN_PLUGINS__;
   if (!SDK || !PLUGINS || !PLUGINS.registerSlot) {
     // Old dashboard bundle without slot support — bail silently rather
     // than breaking the page.
@@ -188,7 +188,7 @@
           },
         },
         React.createElement("span", { style: { opacity: 0.5, fontSize: "0.55rem" } }, "pilot"),
-        React.createElement("span", { style: { fontWeight: 700 } }, "hermes agent"),
+        React.createElement("span", { style: { fontWeight: 700 } }, "robin agent"),
         React.createElement("span", { style: { opacity: 0.5, fontSize: "0.55rem" } }, "compass"),
       ),
       // Telemetry bars
@@ -279,7 +279,7 @@
           mixBlendMode: "plus-lighter",
         },
       },
-      "compass hermes systems / cosmic era 71",
+      "compass robin systems / cosmic era 71",
     );
   }
 

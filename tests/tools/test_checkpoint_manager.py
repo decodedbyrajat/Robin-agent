@@ -35,7 +35,7 @@ def work_dir(tmp_path):
 
 @pytest.fixture()
 def checkpoint_base(tmp_path):
-    """Isolated checkpoint base — never writes to ~/.hermes/."""
+    """Isolated checkpoint base — never writes to ~/.robin/."""
     return tmp_path / "checkpoints"
 
 
@@ -131,7 +131,7 @@ class TestShadowRepoInit:
         monkeypatch.setattr("tools.checkpoint_manager.CHECKPOINT_BASE", checkpoint_base)
         shadow = _shadow_repo_path(str(work_dir))
         _init_shadow_repo(shadow, str(work_dir))
-        workdir_file = shadow / "HERMES_WORKDIR"
+        workdir_file = shadow / "ROBIN_WORKDIR"
         assert workdir_file.exists()
         assert str(work_dir.resolve()) in workdir_file.read_text()
 
@@ -734,7 +734,7 @@ class TestPruneCheckpoints:
         shadow = base / dir_hash
         shadow.mkdir(parents=True)
         (shadow / "HEAD").write_text("ref: refs/heads/main\n")
-        (shadow / "HERMES_WORKDIR").write_text(str(workdir) + "\n")
+        (shadow / "ROBIN_WORKDIR").write_text(str(workdir) + "\n")
         (shadow / "info").mkdir()
         (shadow / "info" / "exclude").write_text("node_modules/\n")
         if mtime is not None:
@@ -853,7 +853,7 @@ class TestMaybeAutoPruneCheckpoints:
         shadow = base / dir_hash
         shadow.mkdir()
         (shadow / "HEAD").write_text("ref: refs/heads/main\n")
-        (shadow / "HERMES_WORKDIR").write_text(str(workdir) + "\n")
+        (shadow / "ROBIN_WORKDIR").write_text(str(workdir) + "\n")
         return shadow
 
     def test_first_call_prunes_and_writes_marker(self, tmp_path):

@@ -340,7 +340,7 @@ Generate some audio.
         )
 
         with patch.dict(
-            os.environ, {"HERMES_SESSION_PLATFORM": "telegram"}, clear=False
+            os.environ, {"ROBIN_SESSION_PLATFORM": "telegram"}, clear=False
         ):
             with patch("tools.skills_tool.SKILLS_DIR", tmp_path):
                 _make_skill(
@@ -430,7 +430,7 @@ class TestSkillDirectoryHeader:
 
 
 class TestTemplateVarSubstitution:
-    """``${HERMES_SKILL_DIR}`` and ``${HERMES_SESSION_ID}`` in SKILL.md body
+    """``${ROBIN_SKILL_DIR}`` and ``${ROBIN_SESSION_ID}`` in SKILL.md body
     are replaced before the agent sees the content."""
 
     def test_substitutes_skill_dir(self, tmp_path):
@@ -438,7 +438,7 @@ class TestTemplateVarSubstitution:
             skill_dir = _make_skill(
                 tmp_path,
                 "templated",
-                body="Run: node ${HERMES_SKILL_DIR}/scripts/foo.js",
+                body="Run: node ${ROBIN_SKILL_DIR}/scripts/foo.js",
             )
             scan_skill_commands()
             msg = build_skill_invocation_message("/templated")
@@ -446,14 +446,14 @@ class TestTemplateVarSubstitution:
         assert msg is not None
         assert f"node {skill_dir}/scripts/foo.js" in msg
         # The literal template token must not leak through.
-        assert "${HERMES_SKILL_DIR}" not in msg.split("[Skill directory:")[0]
+        assert "${ROBIN_SKILL_DIR}" not in msg.split("[Skill directory:")[0]
 
     def test_substitutes_session_id_when_available(self, tmp_path):
         with patch("tools.skills_tool.SKILLS_DIR", tmp_path):
             _make_skill(
                 tmp_path,
                 "sess-templated",
-                body="Session: ${HERMES_SESSION_ID}",
+                body="Session: ${ROBIN_SESSION_ID}",
             )
             scan_skill_commands()
             msg = build_skill_invocation_message(
@@ -468,14 +468,14 @@ class TestTemplateVarSubstitution:
             _make_skill(
                 tmp_path,
                 "sess-missing",
-                body="Session: ${HERMES_SESSION_ID}",
+                body="Session: ${ROBIN_SESSION_ID}",
             )
             scan_skill_commands()
             msg = build_skill_invocation_message("/sess-missing", task_id=None)
 
         assert msg is not None
         # No session — token left intact so the author can spot it.
-        assert "Session: ${HERMES_SESSION_ID}" in msg
+        assert "Session: ${ROBIN_SESSION_ID}" in msg
 
     def test_disable_template_vars_via_config(self, tmp_path):
         with (
@@ -488,14 +488,14 @@ class TestTemplateVarSubstitution:
             _make_skill(
                 tmp_path,
                 "no-sub",
-                body="Run: node ${HERMES_SKILL_DIR}/scripts/foo.js",
+                body="Run: node ${ROBIN_SKILL_DIR}/scripts/foo.js",
             )
             scan_skill_commands()
             msg = build_skill_invocation_message("/no-sub")
 
         assert msg is not None
         # Template token must survive when substitution is disabled.
-        assert "${HERMES_SKILL_DIR}/scripts/foo.js" in msg
+        assert "${ROBIN_SKILL_DIR}/scripts/foo.js" in msg
 
 
 class TestInlineShellExpansion:

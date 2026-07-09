@@ -7,10 +7,10 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Matches ${HERMES_SKILL_DIR} / ${HERMES_SESSION_ID} tokens in SKILL.md.
-# Tokens that don't resolve (e.g. ${HERMES_SESSION_ID} with no session) are
+# Matches ${ROBIN_SKILL_DIR} / ${ROBIN_SESSION_ID} tokens in SKILL.md.
+# Tokens that don't resolve (e.g. ${ROBIN_SESSION_ID} with no session) are
 # left as-is so the user can debug them.
-_SKILL_TEMPLATE_RE = re.compile(r"\$\{(HERMES_SKILL_DIR|HERMES_SESSION_ID)\}")
+_SKILL_TEMPLATE_RE = re.compile(r"\$\{(ROBIN_SKILL_DIR|ROBIN_SESSION_ID)\}")
 
 # Matches inline shell snippets like:  !`date +%Y-%m-%d`
 # Non-greedy, single-line only -- no newlines inside the backticks.
@@ -23,7 +23,7 @@ _INLINE_SHELL_MAX_OUTPUT = 4000
 def load_skills_config() -> dict:
     """Load the ``skills`` section of config.yaml (best-effort)."""
     try:
-        from hermes_cli.config import load_config
+        from robin_cli.config import load_config
 
         cfg = load_config() or {}
         skills_cfg = cfg.get("skills")
@@ -39,7 +39,7 @@ def substitute_template_vars(
     skill_dir: Path | None,
     session_id: str | None,
 ) -> str:
-    """Replace ${HERMES_SKILL_DIR} / ${HERMES_SESSION_ID} in skill content.
+    """Replace ${ROBIN_SKILL_DIR} / ${ROBIN_SESSION_ID} in skill content.
 
     Only substitutes tokens for which a concrete value is available --
     unresolved tokens are left in place so the author can spot them.
@@ -51,9 +51,9 @@ def substitute_template_vars(
 
     def _replace(match: re.Match) -> str:
         token = match.group(1)
-        if token == "HERMES_SKILL_DIR" and skill_dir_str:
+        if token == "ROBIN_SKILL_DIR" and skill_dir_str:
             return skill_dir_str
-        if token == "HERMES_SESSION_ID" and session_id:
+        if token == "ROBIN_SESSION_ID" and session_id:
             return str(session_id)
         return match.group(0)
 

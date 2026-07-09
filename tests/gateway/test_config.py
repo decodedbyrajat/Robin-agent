@@ -197,9 +197,9 @@ class TestGatewayConfigRoundtrip:
 
 class TestLoadGatewayConfig:
     def test_bridges_quick_commands_from_config_yaml(self, tmp_path, monkeypatch):
-        hermes_home = tmp_path / ".hermes"
-        hermes_home.mkdir()
-        config_path = hermes_home / "config.yaml"
+        robin_home = tmp_path / ".robin"
+        robin_home.mkdir()
+        config_path = robin_home / "config.yaml"
         config_path.write_text(
             "quick_commands:\n"
             "  limits:\n"
@@ -208,52 +208,52 @@ class TestLoadGatewayConfig:
             encoding="utf-8",
         )
 
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("ROBIN_HOME", str(robin_home))
 
         config = load_gateway_config()
 
         assert config.quick_commands == {"limits": {"type": "exec", "command": "echo ok"}}
 
     def test_bridges_group_sessions_per_user_from_config_yaml(self, tmp_path, monkeypatch):
-        hermes_home = tmp_path / ".hermes"
-        hermes_home.mkdir()
-        config_path = hermes_home / "config.yaml"
+        robin_home = tmp_path / ".robin"
+        robin_home.mkdir()
+        config_path = robin_home / "config.yaml"
         config_path.write_text("group_sessions_per_user: false\n", encoding="utf-8")
 
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("ROBIN_HOME", str(robin_home))
 
         config = load_gateway_config()
 
         assert config.group_sessions_per_user is False
 
     def test_bridges_thread_sessions_per_user_from_config_yaml(self, tmp_path, monkeypatch):
-        hermes_home = tmp_path / ".hermes"
-        hermes_home.mkdir()
-        config_path = hermes_home / "config.yaml"
+        robin_home = tmp_path / ".robin"
+        robin_home.mkdir()
+        config_path = robin_home / "config.yaml"
         config_path.write_text("thread_sessions_per_user: true\n", encoding="utf-8")
 
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("ROBIN_HOME", str(robin_home))
 
         config = load_gateway_config()
 
         assert config.thread_sessions_per_user is True
 
     def test_thread_sessions_per_user_defaults_to_false(self, tmp_path, monkeypatch):
-        hermes_home = tmp_path / ".hermes"
-        hermes_home.mkdir()
-        config_path = hermes_home / "config.yaml"
+        robin_home = tmp_path / ".robin"
+        robin_home.mkdir()
+        config_path = robin_home / "config.yaml"
         config_path.write_text("{}\n", encoding="utf-8")
 
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("ROBIN_HOME", str(robin_home))
 
         config = load_gateway_config()
 
         assert config.thread_sessions_per_user is False
 
     def test_bridges_quoted_false_platform_enabled_from_config_yaml(self, tmp_path, monkeypatch):
-        hermes_home = tmp_path / ".hermes"
-        hermes_home.mkdir()
-        config_path = hermes_home / "config.yaml"
+        robin_home = tmp_path / ".robin"
+        robin_home.mkdir()
+        config_path = robin_home / "config.yaml"
         config_path.write_text(
             "platforms:\n"
             "  api_server:\n"
@@ -261,7 +261,7 @@ class TestLoadGatewayConfig:
             encoding="utf-8",
         )
 
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("ROBIN_HOME", str(robin_home))
 
         config = load_gateway_config()
 
@@ -269,40 +269,40 @@ class TestLoadGatewayConfig:
         assert Platform.API_SERVER not in config.get_connected_platforms()
 
     def test_bridges_quoted_false_session_notify_from_config_yaml(self, tmp_path, monkeypatch):
-        hermes_home = tmp_path / ".hermes"
-        hermes_home.mkdir()
-        config_path = hermes_home / "config.yaml"
+        robin_home = tmp_path / ".robin"
+        robin_home.mkdir()
+        config_path = robin_home / "config.yaml"
         config_path.write_text(
             "session_reset:\n"
             "  notify: \"false\"\n",
             encoding="utf-8",
         )
 
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("ROBIN_HOME", str(robin_home))
 
         config = load_gateway_config()
 
         assert config.default_reset_policy.notify is False
 
     def test_bridges_quoted_false_always_log_local_from_config_yaml(self, tmp_path, monkeypatch):
-        hermes_home = tmp_path / ".hermes"
-        hermes_home.mkdir()
-        config_path = hermes_home / "config.yaml"
+        robin_home = tmp_path / ".robin"
+        robin_home.mkdir()
+        config_path = robin_home / "config.yaml"
         config_path.write_text(
             "always_log_local: \"false\"\n",
             encoding="utf-8",
         )
 
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("ROBIN_HOME", str(robin_home))
 
         config = load_gateway_config()
 
         assert config.always_log_local is False
 
     def test_bridges_discord_channel_prompts_from_config_yaml(self, tmp_path, monkeypatch):
-        hermes_home = tmp_path / ".hermes"
-        hermes_home.mkdir()
-        config_path = hermes_home / "config.yaml"
+        robin_home = tmp_path / ".robin"
+        robin_home.mkdir()
+        config_path = robin_home / "config.yaml"
         config_path.write_text(
             "discord:\n"
             "  channel_prompts:\n"
@@ -311,7 +311,7 @@ class TestLoadGatewayConfig:
             encoding="utf-8",
         )
 
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("ROBIN_HOME", str(robin_home))
 
         config = load_gateway_config()
 
@@ -321,9 +321,9 @@ class TestLoadGatewayConfig:
         }
 
     def test_bridges_telegram_channel_prompts_from_config_yaml(self, tmp_path, monkeypatch):
-        hermes_home = tmp_path / ".hermes"
-        hermes_home.mkdir()
-        config_path = hermes_home / "config.yaml"
+        robin_home = tmp_path / ".robin"
+        robin_home.mkdir()
+        config_path = robin_home / "config.yaml"
         config_path.write_text(
             "telegram:\n"
             "  channel_prompts:\n"
@@ -332,7 +332,7 @@ class TestLoadGatewayConfig:
             encoding="utf-8",
         )
 
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("ROBIN_HOME", str(robin_home))
 
         config = load_gateway_config()
 
@@ -342,9 +342,9 @@ class TestLoadGatewayConfig:
         }
 
     def test_bridges_slack_channel_prompts_from_config_yaml(self, tmp_path, monkeypatch):
-        hermes_home = tmp_path / ".hermes"
-        hermes_home.mkdir()
-        config_path = hermes_home / "config.yaml"
+        robin_home = tmp_path / ".robin"
+        robin_home.mkdir()
+        config_path = robin_home / "config.yaml"
         config_path.write_text(
             "slack:\n"
             "  channel_prompts:\n"
@@ -352,7 +352,7 @@ class TestLoadGatewayConfig:
             encoding="utf-8",
         )
 
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("ROBIN_HOME", str(robin_home))
 
         config = load_gateway_config()
 
@@ -361,21 +361,21 @@ class TestLoadGatewayConfig:
         }
 
     def test_invalid_quick_commands_in_config_yaml_are_ignored(self, tmp_path, monkeypatch):
-        hermes_home = tmp_path / ".hermes"
-        hermes_home.mkdir()
-        config_path = hermes_home / "config.yaml"
+        robin_home = tmp_path / ".robin"
+        robin_home.mkdir()
+        config_path = robin_home / "config.yaml"
         config_path.write_text("quick_commands: not-a-mapping\n", encoding="utf-8")
 
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("ROBIN_HOME", str(robin_home))
 
         config = load_gateway_config()
 
         assert config.quick_commands == {}
 
     def test_bridges_unauthorized_dm_behavior_from_config_yaml(self, tmp_path, monkeypatch):
-        hermes_home = tmp_path / ".hermes"
-        hermes_home.mkdir()
-        config_path = hermes_home / "config.yaml"
+        robin_home = tmp_path / ".robin"
+        robin_home.mkdir()
+        config_path = robin_home / "config.yaml"
         config_path.write_text(
             "unauthorized_dm_behavior: ignore\n"
             "whatsapp:\n"
@@ -383,7 +383,7 @@ class TestLoadGatewayConfig:
             encoding="utf-8",
         )
 
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("ROBIN_HOME", str(robin_home))
 
         config = load_gateway_config()
 
@@ -391,32 +391,32 @@ class TestLoadGatewayConfig:
         assert config.platforms[Platform.WHATSAPP].extra["unauthorized_dm_behavior"] == "pair"
 
     def test_bridges_telegram_disable_link_previews_from_config_yaml(self, tmp_path, monkeypatch):
-        hermes_home = tmp_path / ".hermes"
-        hermes_home.mkdir()
-        config_path = hermes_home / "config.yaml"
+        robin_home = tmp_path / ".robin"
+        robin_home.mkdir()
+        config_path = robin_home / "config.yaml"
         config_path.write_text(
             "telegram:\n"
             "  disable_link_previews: true\n",
             encoding="utf-8",
         )
 
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("ROBIN_HOME", str(robin_home))
 
         config = load_gateway_config()
 
         assert config.platforms[Platform.TELEGRAM].extra["disable_link_previews"] is True
 
     def test_bridges_telegram_proxy_url_from_config_yaml(self, tmp_path, monkeypatch):
-        hermes_home = tmp_path / ".hermes"
-        hermes_home.mkdir()
-        config_path = hermes_home / "config.yaml"
+        robin_home = tmp_path / ".robin"
+        robin_home.mkdir()
+        config_path = robin_home / "config.yaml"
         config_path.write_text(
             "telegram:\n"
             "  proxy_url: socks5://127.0.0.1:1080\n",
             encoding="utf-8",
         )
 
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("ROBIN_HOME", str(robin_home))
         monkeypatch.delenv("TELEGRAM_PROXY", raising=False)
 
         load_gateway_config()
@@ -425,16 +425,16 @@ class TestLoadGatewayConfig:
         assert os.environ.get("TELEGRAM_PROXY") == "socks5://127.0.0.1:1080"
 
     def test_telegram_proxy_env_takes_precedence_over_config(self, tmp_path, monkeypatch):
-        hermes_home = tmp_path / ".hermes"
-        hermes_home.mkdir()
-        config_path = hermes_home / "config.yaml"
+        robin_home = tmp_path / ".robin"
+        robin_home.mkdir()
+        config_path = robin_home / "config.yaml"
         config_path.write_text(
             "telegram:\n"
             "  proxy_url: http://from-config:8080\n",
             encoding="utf-8",
         )
 
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("ROBIN_HOME", str(robin_home))
         monkeypatch.setenv("TELEGRAM_PROXY", "socks5://from-env:1080")
 
         load_gateway_config()
@@ -489,7 +489,7 @@ class TestHomeChannelEnvOverrides:
                 PlatformConfig(
                     enabled=True,
                     extra={
-                        "address": "hermes@test.com",
+                        "address": "robin@test.com",
                         "imap_host": "imap.test.com",
                         "smtp_host": "smtp.test.com",
                     },

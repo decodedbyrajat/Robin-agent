@@ -38,19 +38,19 @@ from urllib.parse import urljoin
 
 from utils import is_truthy_value
 from tools.managed_tool_gateway import resolve_managed_tool_gateway
-from tools.tool_backend_helpers import managed_nous_tools_enabled, resolve_openai_audio_api_key
+from tools.tool_backend_helpers import managed_iftv_tools_enabled, resolve_openai_audio_api_key
 
 logger = logging.getLogger(__name__)
 
 def get_env_value(name, default=None):
     """Read env values through the live config module.
 
-    Tests may monkeypatch and later restore ``hermes_cli.config.get_env_value``
+    Tests may monkeypatch and later restore ``robin_cli.config.get_env_value``
     before this module is imported. Resolve the helper at call time so STT does
     not keep a stale imported function for the rest of the test process.
     """
     try:
-        from hermes_cli.config import get_env_value as _get_env_value
+        from robin_cli.config import get_env_value as _get_env_value
     except ImportError:
         return os.getenv(name, default)
     value = _get_env_value(name)
@@ -65,12 +65,19 @@ import importlib.util as _ilu
 
 def _safe_find_spec(module_name: str) -> bool:
     try:
-        return _ilu.find_spec(module_name) is not None
-    except (ImportError, ValueError):
+        spec = _ilu.find_spec(module_name)
+        if spec is not None:
+            return True
+        # Fallback: try direct import for tricky binary packages
+        import importlib
+        importlib.import_module(module_name)
+        return True
+    except Exception:
         return module_name in globals() or module_name in os.sys.modules
 
 
 _HAS_FASTER_WHISPER = _safe_find_spec("faster_whisper")
+_HAS_MLX_WHISPER = _safe_find_spec("mlx_whisper")
 _HAS_OPENAI = _safe_find_spec("openai")
 _HAS_MISTRAL = _safe_find_spec("mistralai")
 
@@ -84,8 +91,9 @@ DEFAULT_LOCAL_STT_LANGUAGE = "en"
 DEFAULT_STT_MODEL = os.getenv("STT_OPENAI_MODEL", "whisper-1")
 DEFAULT_GROQ_STT_MODEL = os.getenv("STT_GROQ_MODEL", "whisper-large-v3-turbo")
 DEFAULT_MISTRAL_STT_MODEL = os.getenv("STT_MISTRAL_MODEL", "voxtral-mini-latest")
-LOCAL_STT_COMMAND_ENV = "HERMES_LOCAL_STT_COMMAND"
-LOCAL_STT_LANGUAGE_ENV = "HERMES_LOCAL_STT_LANGUAGE"
+DEFAULT_MLX_WHISPER_REPO = os.getenv("STT_MLX_REPO", "mlx-community/whisper-base-mlx")
+LOCAL_STT_COMMAND_ENV = "ROBIN_LOCAL_STT_COMMAND"
+LOCAL_STT_LANGUAGE_ENV = "ROBIN_LOCAL_STT_LANGUAGE"
 COMMON_LOCAL_BIN_DIRS = ("/opt/homebrew/bin", "/usr/local/bin")
 
 GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
@@ -113,7 +121,7 @@ _local_model_name: Optional[str] = None
 def _load_stt_config() -> dict:
     """Load the ``stt`` section from user config, falling back to defaults."""
     try:
-        from hermes_cli.config import load_config
+        from robin_cli.config import load_config
         return load_config().get("stt", {})
     except Exception:
         return {}
@@ -202,7 +210,7 @@ def _get_provider(stt_config: dict) -> str:
 
     When ``stt.provider`` is explicitly set in config, that choice is
     honoured — no silent cloud fallback.  When no provider is configured,
-    auto-detect tries: local > groq (free) > openai (paid).
+    auto-detect tries: mlx (Apple Silicon) > local > groq (free) > openai (paid).
     """
     if not is_stt_enabled(stt_config):
         return "none"
@@ -213,6 +221,19 @@ def _get_provider(stt_config: dict) -> str:
     # --- Explicit provider: respect the user's choice ----------------------
 
     if explicit:
+        if provider == "mlx":
+            if _HAS_MLX_WHISPER:
+                return "mlx"
+            # Debug: check why it's missing
+            import importlib.util
+            spec = importlib.util.find_spec("mlx_whisper")
+            logger.warning(
+                "STT provider 'mlx' configured but mlx_whisper is not installed. "
+                "Spec: %s, sys.path: %s. Run: uv pip install mlx-whisper",
+                spec, os.sys.path
+            )
+            return "none"
+
         if provider == "local":
             if _HAS_FASTER_WHISPER:
                 return "local"
@@ -220,7 +241,7 @@ def _get_provider(stt_config: dict) -> str:
                 return "local_command"
             logger.warning(
                 "STT provider 'local' configured but unavailable "
-                "(install faster-whisper or set HERMES_LOCAL_STT_COMMAND)"
+                "(install faster-whisper or set ROBIN_LOCAL_STT_COMMAND)"
             )
             return "none"
 
@@ -270,8 +291,11 @@ def _get_provider(stt_config: dict) -> str:
 
         return provider  # Unknown — let it fail downstream
 
-    # --- Auto-detect (no explicit provider): local > groq > openai > mistral > xai -
+    # --- Auto-detect (no explicit provider): mlx > local > groq > openai > mistral > xai -
 
+    if _HAS_MLX_WHISPER:
+        logger.info("Auto-detected MLX Whisper (Apple Silicon GPU)")
+        return "mlx"
     if _HAS_FASTER_WHISPER:
         return "local"
     if _has_local_command():
@@ -490,7 +514,7 @@ def _transcribe_local_command(file_path: str, model_name: str) -> Dict[str, Any]
     normalized_model = _normalize_local_command_model(model_name)
 
     try:
-        with tempfile.TemporaryDirectory(prefix="hermes-local-stt-") as output_dir:
+        with tempfile.TemporaryDirectory(prefix="robin-local-stt-") as output_dir:
             prepared_input, prep_error = _prepare_local_audio(file_path, output_dir)
             if prep_error:
                 return {"success": False, "transcript": "", "error": prep_error}
@@ -707,7 +731,7 @@ def _transcribe_xai(file_path: str, model_name: str) -> Dict[str, Any]:
     ).strip().rstrip("/")
     language = str(
         xai_config.get("language")
-        or os.getenv("HERMES_LOCAL_STT_LANGUAGE")
+        or os.getenv("ROBIN_LOCAL_STT_LANGUAGE")
         or DEFAULT_LOCAL_STT_LANGUAGE
     ).strip()
     # .get("format", True) already defaults to True when the key is absent;
@@ -717,7 +741,7 @@ def _transcribe_xai(file_path: str, model_name: str) -> Dict[str, Any]:
 
     try:
         import requests
-        from tools.xai_http import hermes_xai_user_agent
+        from tools.xai_http import robin_xai_user_agent
 
         data: Dict[str, str] = {}
         if language:
@@ -732,7 +756,7 @@ def _transcribe_xai(file_path: str, model_name: str) -> Dict[str, Any]:
                 f"{base_url}/stt",
                 headers={
                     "Authorization": f"Bearer {api_key}",
-                    "User-Agent": hermes_xai_user_agent(),
+                    "User-Agent": robin_xai_user_agent(),
                 },
                 files={
                     "file": (Path(file_path).name, audio_file),
@@ -782,6 +806,81 @@ def _transcribe_xai(file_path: str, model_name: str) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Provider: mlx-whisper (Apple Silicon — Metal GPU)
+# ---------------------------------------------------------------------------
+
+
+def _transcribe_mlx(file_path: str, hf_repo: str) -> Dict[str, Any]:
+    """Transcribe using MLX Whisper on Apple Silicon (Metal GPU).
+
+    mlx-whisper downloads and caches the model from HuggingFace on first use
+    (~150 MB for whisper-base-mlx). Subsequent calls reuse the cached weights.
+
+    Non-WAV inputs are converted via ffmpeg first since mlx_whisper works
+    best with PCM/WAV on the Metal backend.
+    """
+    if not _HAS_MLX_WHISPER:
+        return {"success": False, "transcript": "", "error": "mlx-whisper not installed"}
+
+    try:
+        import mlx_whisper  # noqa: PLC0415
+
+        audio_path = Path(file_path)
+        work_dir_ctx = None
+        transcribe_path = file_path
+
+        # Convert non-WAV audio to WAV for best MLX compatibility
+        if audio_path.suffix.lower() not in LOCAL_NATIVE_AUDIO_FORMATS:
+            ffmpeg = _find_ffmpeg_binary()
+            if ffmpeg:
+                import tempfile as _tmp
+                work_dir_ctx = _tmp.TemporaryDirectory(prefix="robin-mlx-stt-")
+                wav_path = os.path.join(work_dir_ctx.name, f"{audio_path.stem}.wav")
+                try:
+                    subprocess.run(
+                        [ffmpeg, "-y", "-i", file_path, wav_path],
+                        check=True, capture_output=True, text=True,
+                    )
+                    transcribe_path = wav_path
+                except subprocess.CalledProcessError as e:
+                    logger.warning("ffmpeg conversion failed for MLX STT: %s", e.stderr.strip())
+                    # Fall back to original file — mlx_whisper may still handle it
+                    transcribe_path = file_path
+            else:
+                logger.debug("ffmpeg not found; passing %s directly to mlx_whisper", audio_path.suffix)
+
+        try:
+            language = (
+                _load_stt_config().get("mlx", {}).get("language")
+                or os.getenv(LOCAL_STT_LANGUAGE_ENV)
+                or None  # None triggers auto-detect
+            )
+            result = mlx_whisper.transcribe(
+                transcribe_path,
+                path_or_hf_repo=hf_repo,
+                language=language,
+                verbose=False,
+            )
+            transcript = result.get("text", "").strip()
+        finally:
+            if work_dir_ctx is not None:
+                work_dir_ctx.cleanup()
+
+        if not transcript:
+            return {"success": False, "transcript": "", "error": "MLX Whisper returned empty transcript"}
+
+        logger.info(
+            "Transcribed %s via mlx-whisper (%s, %d chars)",
+            audio_path.name, hf_repo, len(transcript),
+        )
+        return {"success": True, "transcript": transcript, "provider": "mlx"}
+
+    except Exception as e:
+        logger.error("MLX Whisper transcription failed: %s", e, exc_info=True)
+        return {"success": False, "transcript": "", "error": f"MLX Whisper transcription failed: {e}"}
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -821,6 +920,11 @@ def transcribe_audio(file_path: str, model: Optional[str] = None) -> Dict[str, A
 
     provider = _get_provider(stt_config)
 
+    if provider == "mlx":
+        mlx_cfg = stt_config.get("mlx", {})
+        repo = mlx_cfg.get("repo") or DEFAULT_MLX_WHISPER_REPO
+        return _transcribe_mlx(file_path, repo)
+
     if provider == "local":
         local_cfg = stt_config.get("local", {})
         model_name = _normalize_local_model(
@@ -859,9 +963,9 @@ def transcribe_audio(file_path: str, model: Optional[str] = None) -> Dict[str, A
         "success": False,
         "transcript": "",
         "error": (
-            "No STT provider available. Install faster-whisper for free local "
-            f"transcription, configure {LOCAL_STT_COMMAND_ENV} or install a local whisper CLI, "
-            "set GROQ_API_KEY for free Groq Whisper, set MISTRAL_API_KEY for Mistral "
+            "No STT provider available. Install mlx-whisper (Apple Silicon) or faster-whisper "
+            "for free local transcription, configure {LOCAL_STT_COMMAND_ENV} or install a local "
+            "whisper CLI, set GROQ_API_KEY for free Groq Whisper, set MISTRAL_API_KEY for Mistral "
             "Voxtral Transcribe, set XAI_API_KEY for xAI Grok STT, or set VOICE_TOOLS_OPENAI_KEY "
             "or OPENAI_API_KEY for the OpenAI Whisper API."
         ),
@@ -884,7 +988,7 @@ def _resolve_openai_audio_client_config() -> tuple[str, str]:
     managed_gateway = resolve_managed_tool_gateway("openai-audio")
     if managed_gateway is None:
         message = "Neither stt.openai.api_key in config nor VOICE_TOOLS_OPENAI_KEY/OPENAI_API_KEY is set"
-        if managed_nous_tools_enabled():
+        if managed_iftv_tools_enabled():
             message += ", and the managed OpenAI audio gateway is unavailable"
         raise ValueError(message)
 

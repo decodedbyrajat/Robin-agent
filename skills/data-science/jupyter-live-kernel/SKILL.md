@@ -2,10 +2,10 @@
 name: jupyter-live-kernel
 description: "Iterative Python via live Jupyter kernel (hamelnb)."
 version: 1.0.0
-author: Hermes Agent
+author: Robin Agent
 license: MIT
 metadata:
-  hermes:
+  robin:
     tags: [jupyter, notebook, repl, data-science, exploration, iterative]
     category: data-science
 ---
@@ -21,7 +21,7 @@ state incrementally, explore APIs, inspect DataFrames, or iterate on complex cod
 | Tool | Use When |
 |------|----------|
 | **This skill** | Iterative exploration, state across steps, data science, ML, "let me try this and check" |
-| `execute_code` | One-shot scripts needing hermes tool access (web_search, file ops). Stateless. |
+| `execute_code` | One-shot scripts needing robin tool access (web_search, file ops). Stateless. |
 | `terminal` | Shell commands, builds, installs, git, process management |
 
 **Rule of thumb:** If you'd want a Jupyter notebook for the task, use this skill.

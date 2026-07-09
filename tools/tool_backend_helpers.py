@@ -14,7 +14,7 @@ _DEFAULT_MODAL_MODE = "auto"
 _VALID_MODAL_MODES = {"auto", "direct", "managed"}
 
 
-def managed_nous_tools_enabled() -> bool:
+def managed_iftv_tools_enabled() -> bool:
     """Return True when the user has an active paid Nous subscription.
 
     The Tool Gateway is available to any Nous subscriber who is NOT on
@@ -22,13 +22,13 @@ def managed_nous_tools_enabled() -> bool:
     False — never block the agent startup path.
     """
     try:
-        from hermes_cli.auth import get_nous_auth_status
+        from robin_cli.auth import get_nous_auth_status
 
         status = get_nous_auth_status()
         if not status.get("logged_in"):
             return False
 
-        from hermes_cli.models import check_nous_free_tier
+        from robin_cli.models import check_nous_free_tier
 
         if check_nous_free_tier():
             return False  # free-tier users don't get gateway access
@@ -80,15 +80,15 @@ def resolve_modal_backend_state(
     requested_mode = coerce_modal_mode(modal_mode)
     normalized_mode = normalize_modal_mode(modal_mode)
     managed_mode_blocked = (
-        requested_mode == "managed" and not managed_nous_tools_enabled()
+        requested_mode == "managed" and not managed_iftv_tools_enabled()
     )
 
     if normalized_mode == "managed":
-        selected_backend = "managed" if managed_nous_tools_enabled() and managed_ready else None
+        selected_backend = "managed" if managed_iftv_tools_enabled() and managed_ready else None
     elif normalized_mode == "direct":
         selected_backend = "direct" if has_direct else None
     else:
-        selected_backend = "managed" if managed_nous_tools_enabled() and managed_ready else "direct" if has_direct else None
+        selected_backend = "managed" if managed_iftv_tools_enabled() and managed_ready else "direct" if has_direct else None
 
     return {
         "requested_mode": requested_mode,
@@ -114,7 +114,7 @@ def prefers_gateway(config_section: str) -> bool:
     Reads ``<section>.use_gateway`` from config.yaml.  Never raises.
     """
     try:
-        from hermes_cli.config import load_config
+        from robin_cli.config import load_config
         section = (load_config() or {}).get(config_section)
         if isinstance(section, dict):
             return is_truthy_value(section.get("use_gateway"), default=False)
@@ -126,8 +126,8 @@ def prefers_gateway(config_section: str) -> bool:
 def fal_key_is_configured() -> bool:
     """Return True when FAL_KEY is set to a non-whitespace value.
 
-    Consults both ``os.environ`` and ``~/.hermes/.env`` (via
-    ``hermes_cli.config.get_env_value`` when available) so tool-side
+    Consults both ``os.environ`` and ``~/.robin/.env`` (via
+    ``robin_cli.config.get_env_value`` when available) so tool-side
     checks and CLI setup-time checks agree.  A whitespace-only value
     is treated as unset everywhere.
     """
@@ -136,7 +136,7 @@ def fal_key_is_configured() -> bool:
         # Fall back to the .env file for CLI paths that may run before
         # dotenv is loaded into os.environ.
         try:
-            from hermes_cli.config import get_env_value
+            from robin_cli.config import get_env_value
 
             value = get_env_value("FAL_KEY")
         except Exception:

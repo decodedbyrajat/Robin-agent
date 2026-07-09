@@ -1,7 +1,7 @@
 """Unit tests for tools/tool_backend_helpers.py.
 
 Tests cover:
-- managed_nous_tools_enabled() subscription-based gate
+- managed_iftv_tools_enabled() subscription-based gate
 - normalize_browser_cloud_provider() coercion
 - coerce_modal_mode() / normalize_modal_mode() validation
 - has_direct_modal_credentials() detection
@@ -19,7 +19,7 @@ import pytest
 from tools.tool_backend_helpers import (
     coerce_modal_mode,
     has_direct_modal_credentials,
-    managed_nous_tools_enabled,
+    managed_iftv_tools_enabled,
     normalize_browser_cloud_provider,
     normalize_modal_mode,
     prefers_gateway,
@@ -33,47 +33,47 @@ def _raise_import():
 
 
 # ---------------------------------------------------------------------------
-# managed_nous_tools_enabled
+# managed_iftv_tools_enabled
 # ---------------------------------------------------------------------------
 class TestManagedNousToolsEnabled:
     """Subscription-based gate: True for paid Nous subscribers."""
 
     def test_disabled_when_not_logged_in(self, monkeypatch):
         monkeypatch.setattr(
-            "hermes_cli.auth.get_nous_auth_status",
+            "robin_cli.auth.get_nous_auth_status",
             lambda: {},
         )
-        assert managed_nous_tools_enabled() is False
+        assert managed_iftv_tools_enabled() is False
 
     def test_disabled_for_free_tier(self, monkeypatch):
         monkeypatch.setattr(
-            "hermes_cli.auth.get_nous_auth_status",
+            "robin_cli.auth.get_nous_auth_status",
             lambda: {"logged_in": True},
         )
         monkeypatch.setattr(
-            "hermes_cli.models.check_nous_free_tier",
+            "robin_cli.models.check_nous_free_tier",
             lambda: True,
         )
-        assert managed_nous_tools_enabled() is False
+        assert managed_iftv_tools_enabled() is False
 
     def test_enabled_for_paid_subscriber(self, monkeypatch):
         monkeypatch.setattr(
-            "hermes_cli.auth.get_nous_auth_status",
+            "robin_cli.auth.get_nous_auth_status",
             lambda: {"logged_in": True},
         )
         monkeypatch.setattr(
-            "hermes_cli.models.check_nous_free_tier",
+            "robin_cli.models.check_nous_free_tier",
             lambda: False,
         )
-        assert managed_nous_tools_enabled() is True
+        assert managed_iftv_tools_enabled() is True
 
     def test_returns_false_on_exception(self, monkeypatch):
         """Should never crash — returns False on any exception."""
         monkeypatch.setattr(
-            "hermes_cli.auth.get_nous_auth_status",
+            "robin_cli.auth.get_nous_auth_status",
             _raise_import,
         )
-        assert managed_nous_tools_enabled() is False
+        assert managed_iftv_tools_enabled() is False
 
 
 # ---------------------------------------------------------------------------
@@ -198,14 +198,14 @@ class TestPrefersGateway:
 
     def test_returns_false_for_quoted_false(self, monkeypatch):
         monkeypatch.setattr(
-            "hermes_cli.config.load_config",
+            "robin_cli.config.load_config",
             lambda: {"web": {"use_gateway": "false"}},
         )
         assert prefers_gateway("web") is False
 
     def test_returns_true_for_quoted_true(self, monkeypatch):
         monkeypatch.setattr(
-            "hermes_cli.config.load_config",
+            "robin_cli.config.load_config",
             lambda: {"web": {"use_gateway": "true"}},
         )
         assert prefers_gateway("web") is True
@@ -221,7 +221,7 @@ class TestResolveModalBackendState:
     def _resolve(monkeypatch, mode, *, has_direct, managed_ready, nous_enabled=False):
         """Helper to call resolve_modal_backend_state with feature flag control."""
         monkeypatch.setattr(
-            "tools.tool_backend_helpers.managed_nous_tools_enabled",
+            "tools.tool_backend_helpers.managed_iftv_tools_enabled",
             lambda: nous_enabled,
         )
         return resolve_modal_backend_state(

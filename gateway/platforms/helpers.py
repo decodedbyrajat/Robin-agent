@@ -223,8 +223,8 @@ class ThreadParticipationTracker:
         self._threads: set = self._load()
 
     def _state_path(self) -> Path:
-        from hermes_constants import get_hermes_home
-        return get_hermes_home() / f"{self._platform}_threads.json"
+        from robin_constants import get_robin_home
+        return get_robin_home() / f"{self._platform}_threads.json"
 
     def _load(self) -> set:
         path = self._state_path()

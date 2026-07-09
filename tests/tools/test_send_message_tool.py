@@ -73,8 +73,8 @@ class TestSendMessageTool:
         with patch.dict(
             os.environ,
             {
-                "HERMES_CRON_AUTO_DELIVER_PLATFORM": "telegram",
-                "HERMES_CRON_AUTO_DELIVER_CHAT_ID": "-1001",
+                "ROBIN_CRON_AUTO_DELIVER_PLATFORM": "telegram",
+                "ROBIN_CRON_AUTO_DELIVER_CHAT_ID": "-1001",
             },
             clear=False,
         ), \
@@ -177,8 +177,8 @@ class TestSendMessageTool:
              patch("gateway.session_context.get_session_env") as get_session_env_mock, \
              patch("gateway.mirror.mirror_to_session", return_value=True) as mirror_mock:
             get_session_env_mock.side_effect = lambda name, default="": {
-                "HERMES_SESSION_PLATFORM": "telegram",
-                "HERMES_SESSION_USER_ID": "user-123",
+                "ROBIN_SESSION_PLATFORM": "telegram",
+                "ROBIN_SESSION_USER_ID": "user-123",
             }.get(name, default)
             result = json.loads(
                 send_message_tool(
@@ -373,7 +373,7 @@ class TestSendToPlatformChunking:
                     Platform.SLACK,
                     SimpleNamespace(enabled=True, token="***", extra={}),
                     "C123",
-                    "**hello** from [Hermes](<https://example.com>)",
+                    "**hello** from [Robin](<https://example.com>)",
                 )
             )
 
@@ -381,7 +381,7 @@ class TestSendToPlatformChunking:
         send.assert_awaited_once_with(
             "***",
             "C123",
-            "*hello* from <https://example.com|Hermes>",
+            "*hello* from <https://example.com|Robin>",
         )
 
     def test_slack_bold_italic_formatted_before_send(self, monkeypatch):
@@ -602,12 +602,12 @@ class TestSendToPlatformWhatsapp:
                     Platform.WHATSAPP,
                     SimpleNamespace(enabled=True, token=None, extra={"bridge_port": 3000}),
                     chat_id,
-                    "hello from hermes",
+                    "hello from robin",
                 )
             )
 
         assert result["success"] is True
-        async_mock.assert_awaited_once_with({"bridge_port": 3000}, chat_id, "hello from hermes")
+        async_mock.assert_awaited_once_with({"bridge_port": 3000}, chat_id, "hello from robin")
 
 
 class TestSendTelegramHtmlDetection:
@@ -783,8 +783,8 @@ class TestParseTargetRefMatrix:
 
     def test_matrix_user_mxid_is_explicit(self):
         """Matrix user MXIDs (@) are recognized as explicit targets."""
-        chat_id, thread_id, is_explicit = _parse_target_ref("matrix", "@hermes:matrix.org")
-        assert chat_id == "@hermes:matrix.org"
+        chat_id, thread_id, is_explicit = _parse_target_ref("matrix", "@robin:matrix.org")
+        assert chat_id == "@robin:matrix.org"
         assert thread_id is None
         assert is_explicit is True
 

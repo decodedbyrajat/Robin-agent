@@ -6979,7 +6979,63 @@ class GatewayRunner:
         if is_voice_input and not already_sent:
             return False
 
+        # ------------------------------------------------------------------ #
+        # Smart speak-vs-silence filter (Phase 9 / Kokoro spec)               #
+        # Never read walls of text, code blocks, logs, or raw tool output.    #
+        # ------------------------------------------------------------------ #
+        if self._response_should_be_silent(response):
+            logger.debug("_should_send_voice_reply: silenced (content heuristic)")
+            return False
+
         return True
+
+    @staticmethod
+    def _response_should_be_silent(response: str) -> bool:
+        """Return True when TTS should be suppressed for this response.
+
+        Rules (from ROBIN spec / Kokoro anti-patterns):
+        - Responses containing code blocks (```) → silent
+        - Responses with raw tool output markers (TOOL RESULT, ```shell…) → silent
+        - Very long responses (> ~600 chars / ~4 sentences) → silent
+        - Responses that are mostly URLs or paths → silent
+        """
+        import re as _re
+
+        text = response.strip()
+        if not text:
+            return True
+
+        # Code blocks — never read code / logs / traces aloud
+        if "```" in text:
+            return True
+
+        # Inline code density — if more than 20% of chars are inside backtick spans
+        inline_code = _re.findall(r"`[^`\n]+`", text)
+        inline_code_chars = sum(len(c) for c in inline_code)
+        if len(text) > 0 and inline_code_chars / len(text) > 0.2:
+            return True
+
+        # Raw file paths / long URL lines
+        lines = text.splitlines()
+        path_url_lines = sum(
+            1 for l in lines
+            if _re.search(r"https?://\S{40,}|/[\w./-]{20,}", l)
+        )
+        if len(lines) > 0 and path_url_lines / len(lines) > 0.4:
+            return True
+
+        # Sentence count heuristic: > 4 sentences → likely a wall of text
+        # Use simple period/exclamation/question boundary detection.
+        sentence_endings = _re.findall(r"[.!?][\s\n]", text)
+        if len(sentence_endings) > 4:
+            return True
+
+        # Character length cap (roughly 3–4 short sentences)
+        if len(text) > 600:
+            return True
+
+        return False
+
 
     async def _send_voice_reply(self, event: MessageEvent, text: str) -> None:
         """Generate TTS audio and send as a voice message before the text reply."""
@@ -12506,6 +12562,9 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
     success = await runner.start()
     if not success:
         return False
+        
+    # Auto-launch dashboard if configured
+    _maybe_launch_dashboard()
     if runner.should_exit_cleanly:
         if runner.exit_reason:
             logger.error("Gateway exiting cleanly: %s", runner.exit_reason)
@@ -12561,6 +12620,37 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
         return False  # → sys.exit(1) in the caller
 
     return True
+
+
+def _maybe_launch_dashboard():
+    """Launch the Robin dashboard if configured to auto-start and not already running."""
+    try:
+        from robin_cli.config import load_config
+        cfg = load_config()
+        if not cfg.get("dashboard", {}).get("auto_launch", False):
+            return
+
+        # Check if already running (simple port probe)
+        import socket
+        port = cfg.get("dashboard", {}).get("port", 9119)
+        host = cfg.get("dashboard", {}).get("host", "127.0.0.1")
+        
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.5)
+            if s.connect_ex((host, port)) == 0:
+                logger.debug(f"Dashboard already running on {host}:{port}, skipping auto-launch.")
+                return
+
+        logger.info("Auto-launching Robin Dashboard...")
+        # Use sys.executable to ensure we use the same venv
+        subprocess.Popen(
+            [sys.executable, "-m", "robin_cli.main", "dashboard"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except Exception as e:
+        logger.debug("Failed to auto-launch dashboard: %s", e)
 
 
 def main():

@@ -1,6 +1,6 @@
 """Tests for the ``pinPeerName`` config flag (#14984).
 
-By default, when Hermes runs under a gateway (Telegram, Discord, Slack, ...)
+By default, when Robin runs under a gateway (Telegram, Discord, Slack, ...)
 it passes the platform-native user ID as ``runtime_user_peer_name`` into
 ``HonchoSessionManager``.  That ID wins over any configured ``peer_name``
 so multi-user bots scope memory per user.
@@ -46,7 +46,7 @@ class TestPinPeerNameConfigParsing:
             "peerName": "Igor",
             "pinPeerName": True,
         }))
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path / "isolated"))
+        monkeypatch.setenv("ROBIN_HOME", str(tmp_path / "isolated"))
 
         config = HonchoClientConfig.from_global_config(config_path=config_file)
         assert config.pin_peer_name is True
@@ -59,10 +59,10 @@ class TestPinPeerNameConfigParsing:
             "apiKey": "k",
             "peerName": "Igor",
             "hosts": {
-                "hermes": {"pinPeerName": True},
+                "robin": {"pinPeerName": True},
             },
         }))
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path / "isolated"))
+        monkeypatch.setenv("ROBIN_HOME", str(tmp_path / "isolated"))
 
         config = HonchoClientConfig.from_global_config(config_path=config_file)
         assert config.pin_peer_name is True
@@ -75,10 +75,10 @@ class TestPinPeerNameConfigParsing:
             "peerName": "Igor",
             "pinPeerName": True,
             "hosts": {
-                "hermes": {"pinPeerName": False},
+                "robin": {"pinPeerName": False},
             },
         }))
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path / "isolated"))
+        monkeypatch.setenv("ROBIN_HOME", str(tmp_path / "isolated"))
 
         config = HonchoClientConfig.from_global_config(config_path=config_file)
         assert config.pin_peer_name is False, (
@@ -93,7 +93,7 @@ class TestPinPeerNameConfigParsing:
             "peerName": "Igor",
             "pinPeerName": False,
         }))
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path / "isolated"))
+        monkeypatch.setenv("ROBIN_HOME", str(tmp_path / "isolated"))
 
         config = HonchoClientConfig.from_global_config(config_path=config_file)
         assert config.pin_peer_name is False
@@ -216,7 +216,7 @@ class TestPeerResolutionOrder:
             api_key="k",
             peer_name="Igor",
             pin_peer_name=True,
-            ai_peer="hermes-assistant",
+            ai_peer="robin-assistant",
             enabled=False,
             write_frequency="turn",
         )
@@ -229,12 +229,12 @@ class TestPeerResolutionOrder:
 
         session = mgr.get_or_create("telegram:86701400")
         assert session.user_peer_id == "Igor"
-        assert session.assistant_peer_id == "hermes-assistant"
+        assert session.assistant_peer_id == "robin-assistant"
 
 
 class TestCrossPlatformMemoryUnification:
     """The user-visible outcome of the #14984 fix: the same physical user
-    talking to Hermes via Telegram AND Discord should land on ONE peer
+    talking to Robin via Telegram AND Discord should land on ONE peer
     (not two) when pinPeerName is opted in.
     """
 

@@ -35,7 +35,7 @@ def test_make_agent_passes_resolved_provider():
         patch("tui_gateway.server._load_service_tier", return_value=None),
         patch("tui_gateway.server._load_enabled_toolsets", return_value=None),
         patch(
-            "hermes_cli.runtime_provider.resolve_runtime_provider",
+            "robin_cli.runtime_provider.resolve_runtime_provider",
             return_value=fake_runtime,
         ) as mock_resolve,
         patch("run_agent.AIAgent") as mock_agent,
@@ -85,7 +85,7 @@ def test_make_agent_ignores_display_personality_without_system_prompt():
         patch("tui_gateway.server._load_cfg", return_value=fake_cfg),
         patch("tui_gateway.server._get_db", return_value=MagicMock()),
         patch(
-            "hermes_cli.runtime_provider.resolve_runtime_provider",
+            "robin_cli.runtime_provider.resolve_runtime_provider",
             return_value=fake_runtime,
         ),
         patch("run_agent.AIAgent") as mock_agent,
@@ -125,7 +125,7 @@ def test_probe_config_health_flags_null_personalities_with_active_personality():
 
 
 def test_make_agent_tolerates_null_config_sections():
-    """Bare `agent:` / `display:` keys in ~/.hermes/config.yaml parse as
+    """Bare `agent:` / `display:` keys in ~/.robin/config.yaml parse as
     None. cfg.get("agent", {}) returns None (default only fires on missing
     key), so downstream .get() chains must be guarded. Reported via Twitter
     against the new TUI."""
@@ -145,7 +145,7 @@ def test_make_agent_tolerates_null_config_sections():
         patch("tui_gateway.server._load_cfg", return_value=null_cfg),
         patch("tui_gateway.server._get_db", return_value=MagicMock()),
         patch(
-            "hermes_cli.runtime_provider.resolve_runtime_provider",
+            "robin_cli.runtime_provider.resolve_runtime_provider",
             return_value=fake_runtime,
         ),
         patch("run_agent.AIAgent") as mock_agent,
@@ -179,7 +179,7 @@ def test_make_agent_tolerates_null_personalities_with_active_personality():
         patch("tui_gateway.server._get_db", return_value=MagicMock()),
         patch("cli.load_cli_config", return_value={"agent": {"personalities": None}}),
         patch(
-            "hermes_cli.runtime_provider.resolve_runtime_provider",
+            "robin_cli.runtime_provider.resolve_runtime_provider",
             return_value=fake_runtime,
         ),
         patch("run_agent.AIAgent") as mock_agent,
