@@ -71,3 +71,9 @@ result
 website/static/api/skills-index.json
 models-dev-upstream/
 graphify-out/
+
+# Local state databases
+.robin/state.db*
+
+# Scratch scripts
+scratch/
