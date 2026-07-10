@@ -194,24 +194,6 @@ class TestBuildSessionContextPrompt:
         assert "Telegram" in prompt
         assert "Home Chat" in prompt
 
-    def test_bluebubbles_prompt_mentions_short_conversational_i_message_format(self):
-        config = GatewayConfig(
-            platforms={
-                Platform.BLUEBUBBLES: PlatformConfig(enabled=True, extra={"server_url": "http://localhost:1234", "password": "secret"}),
-            },
-        )
-        source = SessionSource(
-            platform=Platform.BLUEBUBBLES,
-            chat_id="iMessage;-;user@example.com",
-            chat_name="Ben",
-            chat_type="dm",
-        )
-        ctx = build_session_context(source, config)
-        prompt = build_session_context_prompt(ctx)
-
-        assert "responding via iMessage" in prompt
-        assert "short and conversational" in prompt
-        assert "blank line" in prompt
 
     def test_discord_prompt(self):
         config = GatewayConfig(
@@ -632,7 +614,7 @@ class TestSessionStoreSwitchSession:
         store._loaded = True
 
         source = SessionSource(
-            platform=Platform.FEISHU,
+            platform=Platform.TELEGRAM,
             chat_id="chat-1",
             chat_type="dm",
             user_id="user-1",

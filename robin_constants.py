@@ -7,6 +7,88 @@ without risk of circular imports.
 import os
 from pathlib import Path
 
+# Homes already checked by the git-worktree guard this process (see
+# _guard_home_in_git_worktree). One entry per distinct resolved home.
+_home_guard_checked: set = set()
+
+
+def _find_enclosing_git_worktree(path: Path) -> "Path | None":
+    """Return the git work-tree root containing ``path``, if any.
+
+    Pure filesystem walk (no subprocess). ``.git`` may be a directory
+    (normal repo) or a file (linked worktree / submodule).
+    """
+    try:
+        cur = path.resolve()
+    except OSError:
+        return None
+    for candidate in (cur, *cur.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    return None
+
+
+def _guard_home_in_git_worktree(home: Path) -> None:
+    """Warn (and best-effort gitignore) when the Robin home lives inside a
+    git work tree.
+
+    The Robin home holds credentials (auth.json), session transcripts, and
+    request dumps. If it resolves inside a repository and is not ignored, a
+    routine ``git add -A`` + push publishes all of it — this exact incident
+    leaked a live API key. The guard runs once per process per home:
+    if the home is inside a work tree and not already git-ignored, it
+    appends an ignore rule to the repo's .gitignore and prints a warning.
+    """
+    key = str(home)
+    if key in _home_guard_checked:
+        return
+    _home_guard_checked.add(key)
+
+    repo = _find_enclosing_git_worktree(home)
+    if repo is None or not home.exists():
+        return
+
+    try:
+        import subprocess
+        ignored = subprocess.run(
+            ["git", "-C", str(repo), "check-ignore", "-q", str(home)],
+            capture_output=True, timeout=5,
+        ).returncode == 0
+    except Exception:
+        return  # git unavailable — nothing reliable we can do
+    if ignored:
+        return
+
+    try:
+        rel = home.resolve().relative_to(repo)
+        rule = f"{rel.as_posix()}/"
+    except ValueError:
+        rule = ""
+
+    appended = False
+    if rule:
+        try:
+            gitignore = repo / ".gitignore"
+            existing = gitignore.read_text(encoding="utf-8") if gitignore.exists() else ""
+            if rule not in existing.splitlines():
+                with open(gitignore, "a", encoding="utf-8") as fh:
+                    if existing and not existing.endswith("\n"):
+                        fh.write("\n")
+                    fh.write(f"{rule}\n")
+                appended = True
+        except OSError:
+            pass
+
+    import sys
+    print(
+        f"⚠️  Robin home {home} is inside the git repository {repo} and was "
+        f"not git-ignored. It contains credentials and session logs — "
+        f"committing it would publish them."
+        + (f" Added '{rule}' to {repo}/.gitignore." if appended else
+           " Add it to .gitignore or move ROBIN_HOME outside the repository."),
+        file=sys.stderr,
+    )
+
 
 def get_robin_home() -> Path:
     """Return the Robin home directory (default: ~/.robin).
@@ -15,7 +97,9 @@ def get_robin_home() -> Path:
     This is the single source of truth — all other copies should import this.
     """
     val = os.environ.get("ROBIN_HOME", "").strip()
-    return Path(val) if val else Path.home() / ".robin"
+    home = Path(val) if val else Path.home() / ".robin"
+    _guard_home_in_git_worktree(home)
+    return home
 
 
 def get_default_robin_root() -> Path:

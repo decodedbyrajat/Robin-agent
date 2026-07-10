@@ -1,0 +1,38 @@
+#!/bin/sh
+# Robin pre-commit guard — blocks committing runtime state and live secrets.
+#
+# Installed by scripts/install-git-hooks.sh. Bypass a false positive with:
+#   git commit --no-verify        (skips all hooks)
+#   ROBIN_ALLOW_SECRETS=1 git commit   (skips only the secret scan)
+#
+# Two checks:
+#   1. Path guard: no file under a Robin home directory (.robin/) may be
+#      committed — it holds auth.json, session transcripts, request dumps.
+#   2. Secret scan: added lines in the staged diff must not contain
+#      high-confidence credential shapes (length-anchored, so docs with
+#      truncated placeholder keys don't false-positive).
+
+fail=0
+
+# ── 1. Path guard ─────────────────────────────────────────────────────────
+blocked_paths=$(git diff --cached --name-only --diff-filter=ACR | grep -E '(^|/)\.robin/' || true)
+if [ -n "$blocked_paths" ]; then
+    echo "✖ pre-commit: refusing to commit Robin runtime state (credentials/session logs):" >&2
+    echo "$blocked_paths" | sed 's/^/    /' >&2
+    echo "  Add '.robin/' to .gitignore and unstage these files." >&2
+    fail=1
+fi
+
+# ── 2. Secret scan (added lines only) ────────────────────────────────────
+if [ "${ROBIN_ALLOW_SECRETS:-0}" != "1" ]; then
+    secret_re='sk-or-v1-[a-f0-9]{48,}|sk-ant-[A-Za-z0-9_-]{40,}|sk-proj-[A-Za-z0-9_-]{40,}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{60,}|xox[bap]-[A-Za-z0-9-]{40,}|AIza[0-9A-Za-z_-]{35}|[0-9]{8,10}:AA[A-Za-z0-9_-]{33}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----'
+    hits=$(git diff --cached --unified=0 | grep -E '^\+' | grep -E "$secret_re" | head -5 || true)
+    if [ -n "$hits" ]; then
+        echo "✖ pre-commit: staged changes contain what looks like a live credential:" >&2
+        echo "$hits" | cut -c1-60 | sed 's/^/    /;s/$/.../' >&2
+        echo "  If this is a placeholder, commit with ROBIN_ALLOW_SECRETS=1." >&2
+        fail=1
+    fi
+fi
+
+exit $fail

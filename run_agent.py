@@ -4173,6 +4173,13 @@ class AIAgent:
                 json.dumps(dump_payload, ensure_ascii=False, indent=2, default=str),
                 encoding="utf-8",
             )
+            # Dumps hold full prompts and (masked) auth headers — owner-only,
+            # matching session file permissions.
+            try:
+                os.chmod(dump_file, 0o600)
+            except OSError:
+                pass
+            self._expire_old_request_dumps()
 
             self._vprint(f"{self.log_prefix}🧾 Request debug dump written to: {dump_file}")
 
@@ -4184,6 +4191,26 @@ class AIAgent:
             if self.verbose_logging:
                 logging.warning(f"Failed to dump API request debug payload: {dump_error}")
             return None
+
+    _REQUEST_DUMP_RETENTION_DAYS = 14
+
+    def _expire_old_request_dumps(self) -> None:
+        """Delete request dumps older than the retention window.
+
+        Dumps are debugging artifacts containing full prompts; they should
+        not accumulate indefinitely. Called after each new dump is written
+        (i.e. only on failure paths, so the sweep is rare and cheap).
+        """
+        try:
+            cutoff = time.time() - self._REQUEST_DUMP_RETENTION_DAYS * 86400
+            for p in self.logs_dir.glob("request_dump_*.json"):
+                try:
+                    if p.stat().st_mtime < cutoff:
+                        p.unlink()
+                except OSError:
+                    continue
+        except Exception as e:
+            logger.debug("Request dump expiry sweep failed: %s", e)
 
     @staticmethod
     def _clean_session_content(content: str) -> str:

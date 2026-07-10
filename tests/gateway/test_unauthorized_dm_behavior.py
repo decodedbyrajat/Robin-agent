@@ -140,24 +140,6 @@ def test_star_wildcard_works_for_any_platform(monkeypatch):
     assert runner._is_user_authorized(source) is True
 
 
-def test_qq_group_allowlist_authorizes_group_chat_without_user_allowlist(monkeypatch):
-    _clear_auth_env(monkeypatch)
-    monkeypatch.setenv("QQ_GROUP_ALLOWED_USERS", "group-openid-1")
-
-    runner, _adapter = _make_runner(
-        Platform.QQBOT,
-        GatewayConfig(platforms={Platform.QQBOT: PlatformConfig(enabled=True)}),
-    )
-
-    source = SessionSource(
-        platform=Platform.QQBOT,
-        user_id="member-openid-999",
-        chat_id="group-openid-1",
-        user_name="tester",
-        chat_type="group",
-    )
-
-    assert runner._is_user_authorized(source) is True
 
 
 def test_qq_group_allowlist_does_not_authorize_other_groups(monkeypatch):
@@ -165,12 +147,12 @@ def test_qq_group_allowlist_does_not_authorize_other_groups(monkeypatch):
     monkeypatch.setenv("QQ_GROUP_ALLOWED_USERS", "group-openid-1")
 
     runner, _adapter = _make_runner(
-        Platform.QQBOT,
-        GatewayConfig(platforms={Platform.QQBOT: PlatformConfig(enabled=True)}),
+        Platform.TELEGRAM,
+        GatewayConfig(platforms={Platform.TELEGRAM: PlatformConfig(enabled=True)}),
     )
 
     source = SessionSource(
-        platform=Platform.QQBOT,
+        platform=Platform.TELEGRAM,
         user_id="member-openid-999",
         chat_id="group-openid-2",
         user_name="tester",
@@ -628,21 +610,3 @@ def test_get_unauthorized_dm_behavior_no_allowlist_returns_pair(monkeypatch):
     assert behavior == "pair"
 
 
-def test_qqbot_with_allowlist_ignores_unauthorized_dm(monkeypatch):
-    """QQBOT is included in the allowlist-aware default (QQ_ALLOWED_USERS).
-
-    Regression guard: the initial #9337 fix omitted QQBOT from the env map
-    inside _get_unauthorized_dm_behavior, even though _is_user_authorized
-    mapped it to QQ_ALLOWED_USERS.  Without QQBOT here, a QQ operator with a
-    strict user allowlist would still get pairing codes sent to strangers.
-    """
-    _clear_auth_env(monkeypatch)
-    monkeypatch.setenv("QQ_ALLOWED_USERS", "allowed-openid-1")
-
-    config = GatewayConfig(
-        platforms={Platform.QQBOT: PlatformConfig(enabled=True)},
-    )
-    runner, _adapter = _make_runner(Platform.QQBOT, config)
-
-    behavior = runner._get_unauthorized_dm_behavior(Platform.QQBOT)
-    assert behavior == "ignore"

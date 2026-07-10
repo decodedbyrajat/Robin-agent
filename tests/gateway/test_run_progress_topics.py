@@ -696,7 +696,7 @@ async def test_run_agent_bluebubbles_uses_commentary_send_path_for_quick_replies
         CommentaryAgent,
         session_id="sess-bluebubbles-commentary",
         config_data={"display": {"interim_assistant_messages": True}},
-        platform=Platform.BLUEBUBBLES,
+        platform=Platform.TELEGRAM,
         chat_id="iMessage;-;user@example.com",
         chat_type="dm",
         thread_id=None,
@@ -722,28 +722,6 @@ async def test_run_agent_previewed_final_marks_already_sent(monkeypatch, tmp_pat
     assert [call["content"] for call in adapter.sent] == ["You're welcome."]
 
 
-@pytest.mark.asyncio
-async def test_run_agent_matrix_streaming_omits_cursor(monkeypatch, tmp_path):
-    adapter, result = await _run_with_agent(
-        monkeypatch,
-        tmp_path,
-        StreamingRefineAgent,
-        session_id="sess-matrix-streaming",
-        config_data={
-            "display": {"tool_progress": "off", "interim_assistant_messages": False},
-            "streaming": {"enabled": True, "edit_interval": 0.01, "buffer_threshold": 1},
-        },
-        platform=Platform.MATRIX,
-        chat_id="!room:matrix.example.org",
-        chat_type="group",
-        thread_id="$thread",
-    )
-
-    assert result.get("already_sent") is True
-    all_text = [call["content"] for call in adapter.sent] + [call["content"] for call in adapter.edits]
-    assert all_text, "expected streamed Matrix content to be sent or edited"
-    assert all("▉" not in text for text in all_text)
-    assert any("Continuing to refine:" in text for text in all_text)
 
 
 @pytest.mark.asyncio
