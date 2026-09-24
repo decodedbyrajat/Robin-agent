@@ -1886,10 +1886,21 @@ def delegate_task(
     # bundle (base_url, api_key, api_mode) via the same runtime provider system
     # used by CLI/gateway startup.  When unconfigured, returns None values so
     # children inherit from the parent.
-    try:
-        creds = _resolve_delegation_credentials(cfg, parent_agent)
-    except ValueError as exc:
-        return tool_error(str(exc))
+    #
+    # Build a fallback chain so that if the primary delegation model fails
+    # (e.g. context window too small), we try the parent's model and then
+    # the configured fallback_model before giving up.
+    fallback_chain = _build_fallback_chain(cfg, parent_agent)
+    if not fallback_chain:
+        # No viable credentials at all — try the original path for its error message
+        try:
+            creds = _resolve_delegation_credentials(cfg, parent_agent)
+        except ValueError as exc:
+            return tool_error(str(exc))
+    else:
+        # Use the first tier's credentials as primary (may be overridden by
+        # the fallback loop below during child construction)
+        creds = fallback_chain[0][1]
 
     # Normalize to task list
     max_children = _get_max_concurrent_children()
@@ -1942,29 +1953,60 @@ def delegate_task(
             # Per-task role beats top-level; normalise again so unknown
             # per-task values warn and degrade to leaf uniformly.
             effective_role = _normalize_role(t.get("role") or top_role)
-            child = _build_child_agent(
-                task_index=i,
-                goal=t["goal"],
-                context=t.get("context"),
-                toolsets=t.get("toolsets") or toolsets,
-                model=creds["model"],
-                max_iterations=effective_max_iter,
-                task_count=n_tasks,
-                parent_agent=parent_agent,
-                override_provider=creds["provider"],
-                override_base_url=creds["base_url"],
-                override_api_key=creds["api_key"],
-                override_api_mode=creds["api_mode"],
-                override_acp_command=t.get("acp_command")
-                or acp_command
-                or creds.get("command"),
-                override_acp_args=(
-                    task_acp_args
-                    if task_acp_args is not None
-                    else (acp_args if acp_args is not None else creds.get("args"))
-                ),
-                role=effective_role,
-            )
+            # Try the fallback chain: attempt each credential set until one
+            # successfully constructs a child agent. This handles cases where
+            # the delegation model's context window is too small, the provider
+            # is down, or credentials are invalid.
+            child = None
+            last_err = None
+            _base_chain = fallback_chain if fallback_chain else [("primary", creds)]
+            _chain = _order_chain_for_task(_base_chain, t.get("goal", ""), t.get("context"))
+            for _fb_idx, (_fb_label, _fb_creds) in enumerate(_chain):
+                try:
+                    child = _build_child_agent(
+                        task_index=i,
+                        goal=t["goal"],
+                        context=t.get("context"),
+                        toolsets=t.get("toolsets") or toolsets,
+                        model=_fb_creds["model"],
+                        max_iterations=effective_max_iter,
+                        task_count=n_tasks,
+                        parent_agent=parent_agent,
+                        override_provider=_fb_creds["provider"],
+                        override_base_url=_fb_creds["base_url"],
+                        override_api_key=_fb_creds["api_key"],
+                        override_api_mode=_fb_creds["api_mode"],
+                        override_acp_command=t.get("acp_command")
+                        or acp_command
+                        or _fb_creds.get("command"),
+                        override_acp_args=(
+                            task_acp_args
+                            if task_acp_args is not None
+                            else (acp_args if acp_args is not None else _fb_creds.get("args"))
+                        ),
+                        role=effective_role,
+                    )
+                    if _fb_idx > 0:
+                        logger.info(
+                            "Delegation fallback: task %d succeeded with %s (%s) "
+                            "after %d failed attempt(s)",
+                            i, _fb_label, _fb_creds.get("model"), _fb_idx,
+                        )
+                    break  # success — stop trying fallbacks
+                except (ValueError, Exception) as _fb_err:
+                    last_err = _fb_err
+                    logger.warning(
+                        "Delegation fallback: task %d failed with %s (%s): %s — "
+                        "trying next fallback (%d/%d)",
+                        i, _fb_label, _fb_creds.get("model"), _fb_err,
+                        _fb_idx + 1, len(_chain),
+                    )
+                    continue
+            if child is None:
+                raise ValueError(
+                    f"All delegation fallback models failed for task {i}. "
+                    f"Last error: {last_err}"
+                )
             # Override with correct parent tool names (before child construction mutated global)
             child._delegate_saved_tool_names = _parent_tool_names
             children.append((i, t, child))
@@ -2226,6 +2268,131 @@ def _resolve_child_credential_pool(effective_provider: Optional[str], parent_age
     return None
 
 
+def _build_fallback_chain(cfg: dict, parent_agent) -> list:
+    """Build an ordered list of credential sets for delegation fallback.
+
+    Returns a list of (label, creds_dict) tuples.  The caller tries them in
+    order until one successfully constructs a child agent.
+
+    Fallback order:
+      1. Configured delegation model (delegation.model / delegation.provider)
+      2. Parent agent's own model (inherits provider/base_url/api_key)
+      3. fallback_model from config.yaml (if configured)
+
+    Each entry is a dict with keys: model, provider, base_url, api_key,
+    api_mode, command, args — same shape as _resolve_delegation_credentials().
+    """
+    chain = []
+
+    # --- Tier 1: configured delegation credentials (may raise) ---
+    try:
+        primary = _resolve_delegation_credentials(cfg, parent_agent)
+        chain.append(("delegation config", primary))
+    except ValueError:
+        pass  # no delegation config or broken — skip
+
+    # --- Tier 2: parent's own model/provider ---
+    parent_model = getattr(parent_agent, "model", None)
+    parent_base_url = getattr(parent_agent, "base_url", None)
+    parent_api_key = getattr(parent_agent, "api_key", None)
+    if not parent_api_key and hasattr(parent_agent, "_client_kwargs"):
+        parent_api_key = parent_agent._client_kwargs.get("api_key")
+    parent_provider = getattr(parent_agent, "provider", None)
+    parent_api_mode = getattr(parent_agent, "api_mode", None)
+
+    if parent_model and parent_base_url:
+        parent_creds = {
+            "model": parent_model,
+            "provider": parent_provider,
+            "base_url": parent_base_url,
+            "api_key": parent_api_key,
+            "api_mode": parent_api_mode,
+            "command": getattr(parent_agent, "acp_command", None),
+            "args": list(getattr(parent_agent, "acp_args", []) or []),
+        }
+        # Don't duplicate if delegation config already points to the same model
+        if not chain or chain[0][1].get("model") != parent_model:
+            chain.append(("parent model", parent_creds))
+
+    # --- Tier 3: fallback_model from config.yaml ---
+    try:
+        from robin_cli.config import load_config
+        full_cfg = load_config()
+        fb = full_cfg.get("fallback_model", {})
+        if fb and fb.get("model"):
+            from agent.model_metadata import get_provider_runtime
+            try:
+                fb_provider = fb.get("provider", "openrouter")
+                fb_runtime = get_provider_runtime(fb_provider)
+                fallback_creds = {
+                    "model": fb["model"],
+                    "provider": fb_provider,
+                    "base_url": fb_runtime.get("base_url") or fb.get("base_url", ""),
+                    "api_key": fb.get("api_key") or fb_runtime.get("api_key", ""),
+                    "api_mode": fb_runtime.get("api_mode", "chat_completions"),
+                    "command": None,
+                    "args": [],
+                }
+                # Resolve env vars in API key
+                if fallback_creds["api_key"] and fallback_creds["api_key"].startswith("${"):
+                    env_var = fallback_creds["api_key"].strip("${}")
+                    fallback_creds["api_key"] = os.getenv(env_var, "")
+                if fallback_creds["api_key"]:
+                    chain.append(("fallback_model", fallback_creds))
+            except Exception as e:
+                logger.debug("Failed to resolve fallback_model credentials: %s", e)
+    except Exception as e:
+        logger.debug("Failed to load fallback_model config: %s", e)
+
+    return chain
+
+
+def _score_task_complexity(goal: str, context: Optional[str] = None) -> str:
+    """Classify task complexity as 'simple', 'medium', or 'complex' based on intent & payload."""
+    text = (goal or "").lower()
+    ctx = (context or "").lower()
+
+    # Complex indicators (high reasoning, multi-file code editing, deep debugging)
+    complex_triggers = [
+        "refactor", "debug", "root cause", "architect", "security review",
+        "synthesize", "analyze bug", "implement feature", "test suite",
+        "deep research", "re-architect", "race condition", "memory leak",
+        "concurrency", "performance bottleneck", "mathematical proof"
+    ]
+    if any(k in text for k in complex_triggers) or len(ctx) > 2500:
+        return "complex"
+
+    # Simple indicators (fast lookup, formatting, quick check)
+    simple_triggers = [
+        "search", "find", "check if", "look up", "ping", "status",
+        "list files", "format", "extract json", "count", "read line"
+    ]
+    if any(k in text for k in simple_triggers) and len(ctx) < 800:
+        return "simple"
+
+    return "medium"
+
+
+def _order_chain_for_task(fallback_chain: list, goal: str, context: Optional[str] = None) -> list:
+    """Order the fallback chain based on task complexity (model stepping).
+
+    For 'complex' tasks, prioritizes the parent/frontier model over smaller local models.
+    For 'simple' tasks, keeps fast/local delegation models first.
+    """
+    if not fallback_chain or len(fallback_chain) <= 1:
+        return fallback_chain
+
+    complexity = _score_task_complexity(goal, context)
+    if complexity == "complex":
+        parent_tiers = [item for item in fallback_chain if "parent" in item[0].lower()]
+        other_tiers = [item for item in fallback_chain if "parent" not in item[0].lower()]
+        if parent_tiers:
+            logger.info("Task complexity scored as 'complex' -> stepping up to %s first", parent_tiers[0][0])
+            return parent_tiers + other_tiers
+
+    return fallback_chain
+
+
 def _resolve_delegation_credentials(cfg: dict, parent_agent) -> dict:
     """Resolve credentials for subagent delegation.
 
@@ -2351,32 +2518,54 @@ def _load_config() -> dict:
 DELEGATE_TASK_SCHEMA = {
     "name": "delegate_task",
     "description": (
-        "Spawn subagents that work in isolated contexts; only each one's final "
-        "summary returns to you (intermediate tool results never enter your "
-        "context). One of 'goal' or 'tasks' is required: 'goal' = single task; "
-        "'tasks' = parallel batch (limit delegation.max_concurrent_children, "
-        "default 3). Results always return as an array.\n"
-        "USE for reasoning-heavy subtasks (debugging, review, research), work "
-        "that would flood your context, or parallel independent workstreams. "
-        "DON'T use for mechanical multi-step work (use execute_code), a single "
-        "tool call (call it directly), tasks needing user interaction "
-        "(subagents cannot clarify), or work that must outlive this turn — "
-        "delegate_task is SYNCHRONOUS and children are cancelled if the parent "
-        "is interrupted; for durable background work use cronjob or "
-        "terminal(background=True, notify_on_complete=True).\n"
-        "Subagents know NOTHING of this conversation: pass all file paths, "
-        "errors, and constraints in 'context', and state the required output "
-        "language/tone there (otherwise they default to English and their "
-        "summaries will contaminate your reply).\n"
-        "Summaries are SELF-REPORTS: for side-effecting operations (uploads, "
-        "remote writes, publishing) require a verifiable handle (URL, ID, "
-        "absolute path, HTTP status) and verify it yourself before reporting "
-        "success.\n"
-        "Roles: 'leaf' (default) cannot call delegate_task, clarify, memory, "
-        "send_message, or execute_code. 'orchestrator' additionally keeps "
-        "delegate_task (requires delegation.max_spawn_depth >= 2; disable via "
-        "delegation.orchestrator_enabled=false). Each subagent gets its own "
-        "terminal session."
+        "Spawn one or more subagents to work on tasks in isolated contexts. "
+        "Each subagent gets its own conversation, terminal session, and toolset. "
+        "Only the final summary is returned -- intermediate tool results "
+        "never enter your context window.\n\n"
+        "TWO MODES (one of 'goal' or 'tasks' is required):\n"
+        "1. Single task: provide 'goal' (+ optional context, toolsets)\n"
+        "2. Batch (parallel): provide 'tasks' array with up to delegation.max_concurrent_children items (default 3, configurable via config.yaml, no hard ceiling). "
+        "All run concurrently and results are returned together. Nested delegation requires role='orchestrator' and delegation.max_spawn_depth >= 2.\n\n"
+        "WHEN TO USE delegate_task:\n"
+        "- Reasoning-heavy subtasks (debugging, code review, research synthesis)\n"
+        "- Tasks that would flood your context with intermediate data\n"
+        "- Parallel independent workstreams (research A and B simultaneously)\n\n"
+        "WHEN NOT TO USE (use these instead):\n"
+        "- Mechanical multi-step work with no reasoning needed -> use execute_code\n"
+        "- Single tool call -> just call the tool directly\n"
+        "- Tasks needing user interaction -> subagents cannot use clarify\n"
+        "- Durable long-running work that must outlive the current turn -> "
+        "use cronjob (action='create') or terminal(background=True, "
+        "notify_on_complete=True) instead. delegate_task runs SYNCHRONOUSLY "
+        "inside the parent turn: if the parent is interrupted (user sends a "
+        "new message, /stop, /new) the child is cancelled with status="
+        "'interrupted' and its work is discarded. Children cannot continue "
+        "in the background.\n\n"
+        "IMPORTANT:\n"
+        "- Subagents have NO memory of your conversation. Pass all relevant "
+        "info (file paths, error messages, constraints) via the 'context' field.\n"
+        "- If the user is writing in a non-English language, or asked for "
+        "output in a specific language / tone / style, say so in 'context' "
+        "(e.g. \"respond in Chinese\", \"return output in Japanese\"). "
+        "Otherwise subagents default to English and their summaries will "
+        "contaminate your final reply with the wrong language.\n"
+        "- Subagent summaries are SELF-REPORTS, not verified facts. A subagent "
+        "that claims \"uploaded successfully\" or \"file written\" may be wrong. "
+        "For operations with external side-effects (HTTP POST/PUT, remote "
+        "writes, file creation at shared paths, publishing), require the "
+        "subagent to return a verifiable handle (URL, ID, absolute path, HTTP "
+        "status) and verify it yourself — fetch the URL, stat the file, read "
+        "back the content — before telling the user the operation succeeded.\n"
+        "- Leaf subagents (role='leaf', the default) CANNOT call: "
+        "delegate_task, clarify, memory, send_message, execute_code.\n"
+        "- Orchestrator subagents (role='orchestrator') retain "
+        "delegate_task so they can spawn their own workers, but still "
+        "cannot use clarify, memory, send_message, or execute_code. "
+        "Orchestrators are bounded by delegation.max_spawn_depth "
+        "(default 2) and can be disabled globally via "
+        "delegation.orchestrator_enabled=false.\n"
+        "- Each subagent gets its own terminal session (separate working directory and state).\n"
+        "- Results are always returned as an array, one entry per task."
     ),
     "parameters": {
         "type": "object",
@@ -2422,7 +2611,7 @@ DELEGATE_TASK_SCHEMA = {
                         "toolsets": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": "Toolsets for this specific task (see top-level 'toolsets' for the available list).",
+                            "description": f"Toolsets for this specific task. Available: {_TOOLSET_LIST_STR}. Use 'web' for network access, 'terminal' for shell, 'browser' for web interaction.",
                         },
                         "acp_command": {
                             "type": "string",

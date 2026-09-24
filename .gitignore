@@ -60,6 +60,11 @@ robin_cli/web_dist/
 web/public/fonts/
 web/public/ds-assets/
 
+# Runtime agent state
+.robin/
+*.sqlite
+*.db
+
 # Release script temp files
 .release_notes.md
 mini-swe-agent/
@@ -70,12 +75,3 @@ mini-swe-agent/
 result
 website/static/api/skills-index.json
 models-dev-upstream/
-graphify-out/
-
-# Local state databases
-.robin/state.db*
-
-# Scratch scripts
-scratch/
-.robin/
-*.bak*

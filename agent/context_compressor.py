@@ -657,6 +657,81 @@ class ContextCompressor(ContextEngine):
 
         return result, pruned
 
+    def proactive_prune(
+        self,
+        messages: List[Dict[str, Any]],
+        keep_recent_tools: int = 6,
+        char_threshold: int = 1000,
+    ) -> tuple[List[Dict[str, Any]], int]:
+        """Proactively prune old, large tool outputs without full compression.
+
+        Unlike full compression (which uses an LLM to summarize middle turns),
+        proactive pruning is a zero-LLM-cost heuristic pass that:
+        1. Keeps the most recent `keep_recent_tools` tool outputs completely untouched
+        2. Prunes older tool outputs that exceed `char_threshold` (e.g. 1000 chars)
+        3. Deduplicates repeated file reads across the entire conversation
+
+        This can be called every few iterations to keep the context lean and
+        delay/avoid the need for expensive LLM-based compression.
+
+        Returns (pruned_messages, pruned_count).
+        """
+        if not messages or len(messages) < keep_recent_tools * 2:
+            return messages, 0
+
+        # Find all tool result messages
+        tool_indices = [
+            i for i, m in enumerate(messages) if m.get("role") == "tool"
+        ]
+
+        if len(tool_indices) <= keep_recent_tools:
+            return messages, 0
+
+        # The boundary is before the last `keep_recent_tools` tool messages
+        protect_boundary = tool_indices[-keep_recent_tools]
+
+        result = [m.copy() for m in messages]
+        pruned = 0
+
+        # Build index: tool_call_id -> (tool_name, arguments_json)
+        call_id_to_tool: Dict[str, tuple] = {}
+        for msg in result:
+            if msg.get("role") == "assistant":
+                for tc in msg.get("tool_calls") or []:
+                    if isinstance(tc, dict):
+                        cid = tc.get("id", "")
+                        fn = tc.get("function", {})
+                        call_id_to_tool[cid] = (
+                            fn.get("name", ""),
+                            fn.get("arguments", ""),
+                        )
+
+        for i in range(protect_boundary):
+            msg = result[i]
+            if msg.get("role") != "tool":
+                continue
+
+            content = msg.get("content", "")
+            if not isinstance(content, str):
+                continue
+
+            # Skip already summarized/pruned
+            if content.startswith("[") and ("read " in content or "ran `" in content or "pruned" in content):
+                continue
+
+            # Only prune if content exceeds threshold
+            if len(content) > char_threshold:
+                cid = msg.get("tool_call_id", "")
+                tool_name, tool_args = call_id_to_tool.get(cid, ("tool", ""))
+                summary = _summarize_tool_result(tool_name, tool_args, content)
+                result[i] = {**msg, "content": summary}
+                pruned += 1
+
+        if pruned > 0:
+            logger.info("Proactive context pruning: compacted %d old tool outputs", pruned)
+
+        return result, pruned
+
     # ------------------------------------------------------------------
     # Summarization
     # ------------------------------------------------------------------
@@ -1299,10 +1374,6 @@ The user has requested that this compaction PRIORITISE preserving all informatio
 
         display_tokens = current_tokens if current_tokens else self.last_prompt_tokens or estimate_messages_tokens_rough(messages)
 
-        # Harvest persisted-output paths BEFORE pruning/summarization destroy
-        # the <persisted-output> blocks that reference them.
-        artifact_paths = _collect_artifact_paths(messages)
-
         # Phase 1: Prune old tool results (cheap, no LLM call)
         messages, pruned_count = self._prune_old_tool_results(
             messages, protect_tail_count=self.protect_last_n,
@@ -1377,23 +1448,6 @@ The user has requested that this compaction PRIORITISE preserving all informatio
                 f"messages contained earlier work in this session. Continue based on the "
                 f"recent messages below and the current state of any files or resources."
             )
-
-        # Append the artifact ledger deterministically (never via the LLM, so
-        # it cannot be hallucinated or dropped). Skip paths still visible in
-        # the protected tail — the model can already see those.
-        if artifact_paths:
-            tail_text = "\n".join(
-                m.get("content") for m in messages[compress_end:]
-                if isinstance(m.get("content"), str)
-            )
-            missing = [p for p in artifact_paths if p not in tail_text]
-            if missing:
-                summary += (
-                    "\n\n## Artifacts on disk (auto-collected)\n"
-                    "Full outputs of earlier large tool results were saved to disk "
-                    "and are still readable with read_file:\n"
-                    + "\n".join(f"- {p}" for p in missing)
-                )
 
         _merge_summary_into_tail = False
         last_head_role = messages[compress_start - 1].get("role", "user") if compress_start > 0 else "user"
